@@ -75,7 +75,7 @@ function renderNew() {
   }
 
   const photoInput = view.querySelector('#photo-input');
-  view.querySelector('#from-photo').onclick = () => photoInput.click();
+  view.querySelector('#from-photo').onclick = () => { photoInput.value = ''; photoInput.click(); };
   photoInput.onchange = async () => {
     const file = photoInput.files[0];
     if (!file) return;
@@ -91,7 +91,7 @@ function renderNew() {
   };
 
   const prnInput = view.querySelector('#prn-input');
-  view.querySelector('#print-prn').onclick = () => prnInput.click();
+  view.querySelector('#print-prn').onclick = () => { prnInput.value = ''; prnInput.click(); };
   prnInput.onchange = async () => {
     const file = prnInput.files[0];
     if (!file) return;
