@@ -1,0 +1,48 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { encodeGfa, buildLabelZpl, buildTestZpl, setZplModeCommand } from '../src/zpl.js';
+
+const bitmap = {
+  width: 16,
+  height: 2,
+  bytesPerRow: 2,
+  data: new Uint8Array([0xff, 0x00, 0x0f, 0xf0]),
+};
+
+test('encodeGfa emits totals, bytes-per-row, and uppercase hex', () => {
+  assert.equal(encodeGfa(bitmap), '^GFA,4,4,2,FF000FF0');
+});
+
+test('buildLabelZpl composes a complete hybrid job', () => {
+  const zpl = buildLabelZpl({
+    width: 576,
+    height: 406,
+    bitmap,
+    barcode: '036000291452',
+    barcodeBox: { x: 98, y: 160, w: 380, h: 220 },
+    quantity: 3,
+    darkness: 20,
+  });
+  assert.ok(zpl.startsWith('~SD20\n^XA'));
+  assert.ok(zpl.includes('^PW576'));
+  assert.ok(zpl.includes('^LL406'));
+  assert.ok(zpl.includes('^FO0,0^GFA,4,4,2,FF000FF0^FS'));
+  // geometry: moduleWidth 4, x 98, barHeight 190; 11 data digits only
+  assert.ok(zpl.includes('^FO98,160^BY4^BUN,190,Y,N,Y^FD03600029145^FS'));
+  assert.ok(zpl.includes('^PQ3'));
+  assert.ok(zpl.trimEnd().endsWith('^XZ'));
+});
+
+test('buildLabelZpl omits barcode field and darkness when absent', () => {
+  const zpl = buildLabelZpl({ width: 576, height: 406, bitmap, barcode: '', barcodeBox: null });
+  assert.ok(zpl.startsWith('^XA'));
+  assert.ok(!zpl.includes('^BU'));
+  assert.ok(!zpl.includes('~SD'));
+  assert.ok(zpl.includes('^PQ1'));
+});
+
+test('buildTestZpl and setZplModeCommand return fixed commands', () => {
+  assert.ok(buildTestZpl().startsWith('^XA'));
+  assert.ok(buildTestZpl().includes('Zebra Connect'));
+  assert.equal(setZplModeCommand(), '! U1 setvar "device.languages" "hybrid_xml_zpl"\r\n');
+});
