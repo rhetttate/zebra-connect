@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import net from 'node:net';
-import { sendToPrinter, probe } from '../src/printer.js';
+import { sendToPrinter, probe, discoverPrinters } from '../src/printer.js';
 
 function fakePrinter() {
   return new Promise((resolve) => {
@@ -35,4 +35,14 @@ test('probe reports open and closed ports', async () => {
   assert.equal(await probe('127.0.0.1', { port: p.port }), true);
   p.close();
   assert.equal(await probe('127.0.0.1', { port: 1, timeoutMs: 300 }), false);
+});
+
+test('discoverPrinters finds a listener when given explicit prefixes', async () => {
+  const p = await fakePrinter();
+  const found = await discoverPrinters({
+    port: p.port,
+    prefixes: ['127.0.0'],
+  });
+  assert.ok(found.includes('127.0.0.1'));
+  p.close();
 });

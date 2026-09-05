@@ -10,8 +10,12 @@ export function sendToPrinter(ip, data, { port = 9100, timeoutMs = 10000 } = {})
     };
     sock.setTimeout(timeoutMs, () => fail('timeout'));
     sock.on('error', (err) => fail(err.code ?? err.message));
-    sock.on('connect', () => sock.end(data));
-    sock.on('close', (hadError) => { if (!hadError) resolve(); });
+    sock.on('connect', () => {
+      sock.end(data, () => {
+        sock.destroy();
+        resolve();
+      });
+    });
   });
 }
 
@@ -25,16 +29,19 @@ export function probe(ip, { port = 9100, timeoutMs = 500 } = {}) {
   });
 }
 
-export async function discoverPrinters({ port = 9100 } = {}) {
-  const prefixes = new Set();
-  for (const addrs of Object.values(os.networkInterfaces())) {
-    for (const a of addrs ?? []) {
-      if (a.family === 'IPv4' && !a.internal) {
-        prefixes.add(a.address.split('.').slice(0, 3).join('.'));
+export async function discoverPrinters({ port = 9100, prefixes = null } = {}) {
+  if (!prefixes) {
+    const found = new Set();
+    for (const addrs of Object.values(os.networkInterfaces())) {
+      for (const a of addrs ?? []) {
+        if (a.family === 'IPv4' && !a.internal) {
+          found.add(a.address.split('.').slice(0, 3).join('.'));
+        }
       }
     }
+    prefixes = [...found];
   }
-  const targets = [...prefixes].flatMap((p) =>
+  const targets = prefixes.flatMap((p) =>
     Array.from({ length: 254 }, (_, i) => `${p}.${i + 1}`));
   const found = [];
   const CONCURRENCY = 64;
