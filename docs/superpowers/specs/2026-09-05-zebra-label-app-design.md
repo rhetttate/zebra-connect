@@ -20,15 +20,18 @@ printing, and AI photo extraction.
 - Auto-generate random, unique UPC-A barcodes for new labels.
 - Store every label; edit and reprint any of them later.
 - Live, faithful label preview on the phone.
+- Edit the layout from the phone: touch-drag and resize the name,
+  description, and barcode anywhere on the label; positions save with
+  the label.
 - Upload raw .prn files and send them to the printer byte-for-byte.
 
 ## Non-goals
 
 - BLE printing (may be revisited later).
 - Native mobile app.
-- Drag-and-drop free-form layout editing (text size S/M/L and field
-  toggles only).
 - Multi-user access control (single user on a trusted home LAN).
+- Arbitrary extra elements (images, extra text boxes, shapes) — the
+  three standard elements only, freely positionable.
 
 ## Architecture
 
@@ -51,10 +54,14 @@ verify the right one.
    button.
 2. **New label:** choose size, then "Start from photo" or "Start blank."
 3. **Editor:** live preview at top (true aspect ratio, server-rendered
-   PNG). Fields: name, description (default on for 3×5, off for smaller
-   sizes, toggleable everywhere), barcode (auto-generated UPC-A, with
-   regenerate button and manual override), text size S/M/L, quantity,
-   Print button, Save.
+   PNG). Tapping an element on the preview selects it; drag to move,
+   corner handle (or pinch) to resize. Element boxes are overlaid on the
+   client atop the preview image, so dragging is smooth and the server
+   re-renders on release. Fields below: name, description (default on
+   for 3×5, off for smaller sizes, toggleable everywhere), barcode
+   (auto-generated UPC-A, with regenerate button and manual override),
+   quantity, "Reset layout" (back to the size's default), Print button,
+   Save.
 4. **Photo flow:** camera/gallery picker → upload → Claude extracts
    fields → editor opens pre-filled for review. Available for all sizes,
    default entry for 3×5.
@@ -71,7 +78,11 @@ Label record:
 - `id` — internal unique id
 - `size` — `3x5` | `3x2` | `2x1.25`
 - `fields` — `{ name, description, barcode }`
-- `options` — `{ showDescription, textSize }`
+- `options` — `{ showDescription }`
+- `layout` — per-element boxes in printer dots:
+  `{ name: {x, y, w, h}, description: {x, y, w, h}, barcode: {x, y, w, h} }`.
+  Text auto-fits its box; the barcode fills its box. Each size has a
+  built-in default layout used until the user moves something.
 - `createdAt`, `updatedAt`
 
 Barcode generation: 11 random digits + computed UPC-A check digit;
@@ -85,9 +96,11 @@ One layout engine per label size, rendering at 203 dpi
 - **Preview:** server renders the full label — text and a simulated
   barcode — as a PNG the phone displays live.
 - **Print:** server renders text/layout only as a ZPL `^GFA` bitmap and
-  emits a native ZPL UPC-A command (`^BU`) at the same coordinates the
-  preview drew it, so the printed barcode is printer-crisp and scannable
+  emits a native ZPL UPC-A command (`^BU`) at the barcode's stored box
+  coordinates, so the printed barcode is printer-crisp and scannable
   while text matches the preview exactly.
+- Both paths read element positions from the label's `layout`, so a
+  dragged layout previews and prints identically.
 - **.prn uploads:** bypass rendering entirely; raw bytes to port 9100.
 
 ## Photo extraction
