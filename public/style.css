@@ -1,0 +1,37 @@
+* { box-sizing: border-box; margin: 0; }
+body { font-family: system-ui, sans-serif; background: #f2f2f5; color: #111; }
+header { display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 14px; background: #1a1a2e; color: #fff; position: sticky; top: 0; z-index: 5; }
+header h1 { font-size: 18px; }
+header nav a { font-size: 22px; text-decoration: none; margin-left: 14px; }
+main { padding: 12px; max-width: 640px; margin: 0 auto; }
+button { font-size: 16px; padding: 10px 16px; border: 0; border-radius: 8px;
+  background: #3b5bdb; color: #fff; }
+button.secondary { background: #dee2e6; color: #111; }
+button.danger { background: #c92a2a; }
+button:disabled { opacity: .5; }
+input, select, textarea { font-size: 16px; padding: 9px; width: 100%;
+  border: 1px solid #ccc; border-radius: 8px; background: #fff; }
+label.field { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 14px; }
+.card { background: #fff; border-radius: 10px; padding: 12px; margin-bottom: 10px;
+  display: flex; gap: 12px; align-items: center; }
+.card img { width: 84px; border: 1px solid #ddd; border-radius: 4px; }
+.card .meta { flex: 1; min-width: 0; }
+.card .meta .name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.card .meta .sub { color: #666; font-size: 13px; }
+.row { display: flex; gap: 10px; margin: 12px 0; align-items: center; }
+.row > * { flex: 1; }
+.size-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.size-grid button { padding: 22px 0; font-size: 18px; }
+#toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #333; color: #fff; padding: 10px 18px; border-radius: 8px; z-index: 10; }
+#toast.error { background: #c92a2a; }
+/* editor preview + drag overlay (used by Task 11/12) */
+#preview-wrap { position: relative; margin: 0 auto; border: 1px solid #bbb;
+  background: #fff; touch-action: none; }
+#preview-wrap img { display: block; width: 100%; }
+.el-box { position: absolute; border: 1px dashed rgba(59,91,219,.7); }
+.el-box.selected { border: 2px solid #3b5bdb; background: rgba(59,91,219,.08); }
+.el-box .handle { position: absolute; right: -12px; bottom: -12px; width: 24px;
+  height: 24px; background: #3b5bdb; border-radius: 50%; display: none; }
+.el-box.selected .handle { display: block; }
