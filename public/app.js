@@ -60,10 +60,48 @@ function renderNew() {
       <button data-size="3x5">3" × 5"</button>
       <button data-size="3x2">3" × 2"</button>
       <button data-size="2x1.25">2" × 1.25"</button>
-    </div>`;
+    </div>
+    <div class="row" style="margin-top:20px">
+      <button id="from-photo" class="secondary">📷 Start from photo (3×5)</button>
+    </div>
+    <div class="row">
+      <button id="print-prn" class="secondary">📄 Print a .prn file</button>
+    </div>
+    <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+    <input id="prn-input" type="file" accept=".prn" hidden>`;
+
   for (const btn of view.querySelectorAll('[data-size]')) {
     btn.onclick = () => renderEditor(view, { size: btn.dataset.size });
   }
+
+  const photoInput = view.querySelector('#photo-input');
+  view.querySelector('#from-photo').onclick = () => photoInput.click();
+  photoInput.onchange = async () => {
+    const file = photoInput.files[0];
+    if (!file) return;
+    showToast('Reading photo…');
+    try {
+      const fields = await api.extract(file);
+      renderEditor(view, { size: '3x5', fields });
+    } catch (err) {
+      // Per spec: on extraction failure, open a blank editor with an error notice.
+      showToast(`Photo reading failed: ${err.message}`, true);
+      renderEditor(view, { size: '3x5' });
+    }
+  };
+
+  const prnInput = view.querySelector('#prn-input');
+  view.querySelector('#print-prn').onclick = () => prnInput.click();
+  prnInput.onchange = async () => {
+    const file = prnInput.files[0];
+    if (!file) return;
+    try {
+      await api.printRaw(file);
+      showToast('Sent to printer 🖨');
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
 }
 
 async function route() {
