@@ -93,20 +93,26 @@ export function renderEditor(container, labelOrDraft) {
     refreshPreview(true);
   };
   container.querySelector('#regen').onclick = async () => {
-    const { barcode } = await api.newBarcode();
-    draft.fields.barcode = barcode;
-    els.barcode.value = barcode;
-    refreshPreview(true);
+    try {
+      const { barcode } = await api.newBarcode();
+      draft.fields.barcode = barcode;
+      els.barcode.value = barcode;
+      refreshPreview(true);
+    } catch (err) { showToast(err.message, true); }
   };
   container.querySelector('#reset-layout').onclick = async () => {
-    draft.layout = undefined;
-    const saved = await api.updateLabel(draft.id, draft);
-    draft.layout = saved.layout;
-    attachLayoutEditing(els.wrap, draft, () => refreshPreview());
-    refreshPreview(true);
-    showToast('Layout reset');
+    if (!draft.id) { showToast('Label is still loading — try again in a second', true); return; }
+    try {
+      draft.layout = undefined;
+      const saved = await api.updateLabel(draft.id, draft);
+      draft.layout = saved.layout;
+      attachLayoutEditing(els.wrap, draft, () => refreshPreview());
+      refreshPreview(true);
+      showToast('Layout reset');
+    } catch (err) { showToast(err.message, true); }
   };
   container.querySelector('#save').onclick = async () => {
+    if (!draft.id) { showToast('Label is still loading — try again in a second', true); return; }
     try {
       const saved = await api.updateLabel(draft.id, draft);
       Object.assign(draft, saved);
@@ -114,6 +120,7 @@ export function renderEditor(container, labelOrDraft) {
     } catch (err) { showToast(err.message, true); }
   };
   container.querySelector('#print').onclick = async () => {
+    if (!draft.id) { showToast('Label is still loading — try again in a second', true); return; }
     const btn = container.querySelector('#print');
     btn.disabled = true;
     try {
@@ -125,9 +132,12 @@ export function renderEditor(container, labelOrDraft) {
   };
   const deleteBtn = container.querySelector('#delete');
   if (deleteBtn) deleteBtn.onclick = async () => {
+    if (!draft.id) { showToast('Label is still loading — try again in a second', true); return; }
     if (!confirm('Delete this label?')) return;
-    await api.deleteLabel(draft.id);
-    navigate('#/');
+    try {
+      await api.deleteLabel(draft.id);
+      navigate('#/');
+    } catch (err) { showToast(err.message, true); }
   };
 
   ensureNormalized().then(() => refreshPreview(true)).catch((err) => showToast(err.message, true));
