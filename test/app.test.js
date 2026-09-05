@@ -127,3 +127,27 @@ test('print-raw forwards bytes untouched; settings masks apiKey', async () => {
   assert.equal('apiKey' in settings, false);
   close();
 });
+
+test('validation errors return JSON bodies and DELETE 404s on unknown ids', async () => {
+  const { base, close } = await startApp();
+  const bad = await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: 'nope', fields: { name: 'X' } }),
+  });
+  assert.equal(bad.status, 400);
+  assert.equal(bad.headers.get('content-type').includes('application/json'), true);
+  assert.match((await bad.json()).error, /unknown size/);
+
+  const badBarcode = await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x2', fields: { name: 'X', barcode: '123' } }),
+  });
+  assert.equal(badBarcode.status, 400);
+  assert.match((await badBarcode.json()).error, /UPC-A/);
+
+  const del = await fetch(`${base}/api/labels/does-not-exist`, { method: 'DELETE' });
+  assert.equal(del.status, 404);
+  close();
+});

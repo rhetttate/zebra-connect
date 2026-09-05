@@ -49,7 +49,7 @@ export function createApp({ dataDir, printerOverrides = {} }) {
   }
 
   const wrap = (fn) => (req, res) => {
-    Promise.resolve(fn(req, res)).catch((err) => {
+    Promise.resolve().then(() => fn(req, res)).catch((err) => {
       const status = err.status ?? (/reach printer/i.test(err.message) ? 502 : 500);
       res.status(status).json({ error: err.message });
     });
@@ -87,6 +87,7 @@ export function createApp({ dataDir, printerOverrides = {} }) {
   }));
 
   app.delete('/api/labels/:id', wrap((req, res) => {
+    if (!store.get(req.params.id)) return res.status(404).json({ error: 'not found' });
     store.remove(req.params.id);
     res.json({ ok: true });
   }));
