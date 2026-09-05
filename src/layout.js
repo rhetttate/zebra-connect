@@ -13,12 +13,12 @@ const DEFAULT_LAYOUTS = {
   '3x2': {
     name: { x: 20, y: 20, w: 536, h: 110 },
     description: { x: 20, y: 140, w: 536, h: 80 },
-    barcode: { x: 98, y: 160, w: 380, h: 220 },
+    barcode: { x: 98, y: 225, w: 380, h: 175 },
   },
   '2x1.25': {
     name: { x: 10, y: 8, w: 386, h: 70 },
     description: { x: 10, y: 82, w: 386, h: 40 },
-    barcode: { x: 58, y: 92, w: 290, h: 150 },
+    barcode: { x: 58, y: 126, w: 290, h: 122 },
   },
 };
 
