@@ -60,6 +60,11 @@ export function attachLayoutEditing(previewWrap, draft, onLayoutChange) {
       el.releasePointerCapture(e.pointerId);
       onLayoutChange();
     });
+    el.addEventListener('pointercancel', () => {
+      if (!drag) return;
+      drag = null;
+      onLayoutChange();
+    });
   }
 }
 
@@ -174,6 +179,7 @@ export function renderEditor(container, labelOrDraft) {
     try {
       const saved = await api.updateLabel(draft.id, draft);
       Object.assign(draft, saved);
+      attachLayoutEditing(els.wrap, draft, () => refreshPreview());
       showToast('Saved');
     } catch (err) { showToast(err.message, true); }
   };
