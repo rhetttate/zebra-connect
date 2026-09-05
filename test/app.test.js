@@ -151,3 +151,33 @@ test('validation errors return JSON bodies and DELETE 404s on unknown ids', asyn
   assert.equal(del.status, 404);
   close();
 });
+
+test('extract requires an API key, then returns extracted fields', async () => {
+  const { base, close } = await startApp();
+  const noKey = await fetch(`${base}/api/extract`, {
+    method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: Buffer.from('img'),
+  });
+  assert.equal(noKey.status, 400);
+  close();
+
+  const dataDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-app-'));
+  const app2 = createApp({
+    dataDir: dataDir2,
+    extractOverride: async () => ({ name: 'Beans', description: 'Black beans' }),
+  });
+  await new Promise((resolve) => {
+    const server = app2.listen(0, '127.0.0.1', async () => {
+      const base2 = `http://127.0.0.1:${server.address().port}`;
+      await fetch(`${base2}/api/settings`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey: 'sk-test' }),
+      });
+      const out = await (await fetch(`${base2}/api/extract`, {
+        method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: Buffer.from('img'),
+      })).json();
+      assert.equal(out.name, 'Beans');
+      server.close();
+      resolve();
+    });
+  });
+});

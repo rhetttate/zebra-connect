@@ -8,10 +8,11 @@ import { generateUpcA, validateUpcA } from './barcode.js';
 import { renderPreview, renderPrintBitmap } from './render.js';
 import { buildLabelZpl, buildTestZpl, setZplModeCommand } from './zpl.js';
 import * as printerLib from './printer.js';
+import { extractLabelFields, makeClient } from './extract.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export function createApp({ dataDir, printerOverrides = {} }) {
+export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   const store = createStore(path.join(dataDir, 'labels.json'));
   const config = createConfig(path.join(dataDir, 'config.json'));
   const printer = { ...printerLib, ...printerOverrides };
@@ -124,6 +125,22 @@ export function createApp({ dataDir, printerOverrides = {} }) {
     const ip = requirePrinterIp();
     await printer.sendToPrinter(ip, req.body);
     res.json({ ok: true });
+  }));
+
+  const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  app.post('/api/extract', express.raw({ type: IMAGE_TYPES, limit: '20mb' }), wrap(async (req, res) => {
+    const apiKey = config.get().apiKey || process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      throw Object.assign(new Error('no API key configured — add one in Settings'), { status: 400 });
+    }
+    const mediaType = req.headers['content-type'];
+    const extract = extractOverride
+      ?? ((buf, type) => extractLabelFields(buf, type, makeClient(config.get().apiKey)));
+    try {
+      res.json(await extract(req.body, mediaType));
+    } catch (err) {
+      throw Object.assign(err, { status: 502 });
+    }
   }));
 
   // --- settings ---
