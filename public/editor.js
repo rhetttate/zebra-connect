@@ -1,8 +1,66 @@
 import { api } from './api.js';
 import { showToast, navigate } from './app.js';
 
+const DOT_SIZES = { '3x5': [576, 1015], '3x2': [576, 406], '2x1.25': [406, 253] };
+const MIN_DOTS = 60;
+
 export function attachLayoutEditing(previewWrap, draft, onLayoutChange) {
-  // Implemented in Task 12 (drag & resize).
+  previewWrap.querySelectorAll('.el-box').forEach((el) => el.remove());
+  if (!draft.layout) return;
+  const [dotsW, dotsH] = DOT_SIZES[draft.size];
+  // Keep the wrap's aspect ratio so overlay % positions match the image.
+  previewWrap.style.aspectRatio = `${dotsW} / ${dotsH}`;
+
+  const elements = ['name', 'barcode'];
+  if (draft.options?.showDescription) elements.splice(1, 0, 'description');
+
+  for (const key of elements) {
+    const box = draft.layout[key];
+    const el = document.createElement('div');
+    el.className = 'el-box';
+    el.dataset.el = key;
+    el.innerHTML = '<div class="handle"></div>';
+    previewWrap.appendChild(el);
+
+    const sync = () => {
+      el.style.left = `${(box.x / dotsW) * 100}%`;
+      el.style.top = `${(box.y / dotsH) * 100}%`;
+      el.style.width = `${(box.w / dotsW) * 100}%`;
+      el.style.height = `${(box.h / dotsH) * 100}%`;
+    };
+    sync();
+
+    let drag = null; // {mode: 'move'|'resize', startX, startY, orig}
+    const toDots = (px) => px * (dotsW / previewWrap.clientWidth);
+
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      previewWrap.querySelectorAll('.el-box').forEach((b) => b.classList.remove('selected'));
+      el.classList.add('selected');
+      const mode = e.target.classList.contains('handle') ? 'resize' : 'move';
+      drag = { mode, startX: e.clientX, startY: e.clientY, orig: { ...box } };
+      el.setPointerCapture(e.pointerId);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dx = toDots(e.clientX - drag.startX);
+      const dy = toDots(e.clientY - drag.startY);
+      if (drag.mode === 'move') {
+        box.x = Math.round(Math.min(Math.max(drag.orig.x + dx, 0), dotsW - box.w));
+        box.y = Math.round(Math.min(Math.max(drag.orig.y + dy, 0), dotsH - box.h));
+      } else {
+        box.w = Math.round(Math.min(Math.max(drag.orig.w + dx, MIN_DOTS), dotsW - box.x));
+        box.h = Math.round(Math.min(Math.max(drag.orig.h + dy, MIN_DOTS), dotsH - box.y));
+      }
+      sync();
+    });
+    el.addEventListener('pointerup', (e) => {
+      if (!drag) return;
+      drag = null;
+      el.releasePointerCapture(e.pointerId);
+      onLayoutChange();
+    });
+  }
 }
 
 export function renderEditor(container, labelOrDraft) {
