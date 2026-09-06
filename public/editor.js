@@ -316,6 +316,15 @@ export function renderEditor(container, labelOrDraft) {
     const btn = container.querySelector('#print');
     btn.disabled = true;
     try {
+      // Warn before printing onto the wrong roll.
+      try {
+        const { loadedSize } = await api.getSettings();
+        if (loadedSize && loadedSize !== draft.size) {
+          const ok = confirm(
+            `This is a ${SIZE_LABELS[draft.size]}" label but ${SIZE_LABELS[loadedSize]}" stock is loaded. Print anyway?`);
+          if (!ok) { btn.disabled = false; return; }
+        }
+      } catch { /* settings unavailable — don't block printing */ }
       await api.updateLabel(draft.id, draft);
       await api.printLabel(draft, parseInt(els.qty.value, 10) || 1);
       showToast('Sent to printer');

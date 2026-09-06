@@ -34,6 +34,8 @@ header h1 {
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
+  min-width: 0; margin-right: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 header h1 .dot { color: var(--accent); }
 header nav { display: flex; gap: 4px; }
@@ -44,6 +46,12 @@ header nav a, header nav .navlink {
   background: none; border: 0; padding: 0; cursor: pointer;
 }
 header nav a:active, header nav .navlink:active { background: var(--paper); }
+header nav .chip {
+  width: auto; padding: 0 9px;
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 0.06em; white-space: nowrap;
+  border: 1px solid var(--line);
+}
 
 .icon { width: 20px; height: 20px; flex: none; }
 
@@ -219,6 +227,9 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
 }
 .choice span { color: var(--muted); font-size: 13px; }
 .choice.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
+.size-chips { display: flex; gap: 6px; margin: 4px 0 6px; }
+.size-chips .size-chip { flex: 1; padding: 9px 0; font-family: var(--mono); font-size: 13px; }
+.size-chip.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
 /* ---------- toast ---------- */
 #toast {

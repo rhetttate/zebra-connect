@@ -78,11 +78,14 @@ verify the right one.
 6. **Settings:** printer IP + "find my printer" subnet scan (probes port
    9100), darkness setting, ZPL/CPCL mode, test print button, API key
    status indicator.
-7. **Calibration:** a top-bar control opens a popup to pick the loaded
-   media — gap labels (`^MNY`), black mark labels (`^MNM`), or
-   continuous paper (`^MNN`) — saved to the printer (`^JUS`) and
-   followed by a sensor calibration feed (`~JC`, skipped for
-   continuous). The chosen media type persists in app settings.
+7. **Calibration & loaded roll:** a top-bar chip (e.g. `5 × 3″ GAP`)
+   shows the loaded label size and media type; tapping it (or the
+   crosshair) opens a popup to pick the loaded size and media — gap
+   labels (`^MNY`), black mark labels (`^MNM`), or continuous paper
+   (`^MNN`) — saved to the printer (`^JUS`) and followed by a sensor
+   calibration feed (`~JC`, skipped for continuous). Both choices
+   persist in app settings, and printing a label whose size doesn't
+   match the loaded roll asks for confirmation first.
 
 ## Data model
 

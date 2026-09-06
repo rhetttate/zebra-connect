@@ -13,10 +13,24 @@ const view = document.getElementById('view');
 const title = document.getElementById('title');
 
 document.getElementById('nav').innerHTML = `
+  <button id="loaded-chip" class="navlink chip" title="Loaded labels — tap to change or calibrate"></button>
   <a href="#/" title="Labels">${icon('labels')}</a>
   <a href="#/new" title="New label">${icon('plus')}</a>
   <button id="nav-cal" class="navlink" title="Calibrate printer">${icon('target')}</button>
   <a href="#/settings" title="Settings">${icon('gear')}</a>`;
+
+const MEDIA_SHORT = { gap: 'GAP', mark: 'MARK', continuous: 'CONT' };
+
+export async function refreshLoadedChip() {
+  const chip = document.getElementById('loaded-chip');
+  try {
+    const s = await api.getSettings();
+    chip.textContent = `${SIZE_LABELS[s.loadedSize] ?? s.loadedSize}″ ${MEDIA_SHORT[s.mediaType] ?? ''}`.trim();
+    chip.hidden = false;
+  } catch {
+    chip.hidden = true;
+  }
+}
 
 const MEDIA_TYPES = [
   { value: 'gap', label: 'Gap labels', hint: 'a see-through gap between labels' },
@@ -27,19 +41,30 @@ const MEDIA_TYPES = [
 async function openCalibrate() {
   document.querySelector('.modal-overlay')?.remove();
   let mediaType = 'gap';
-  try { mediaType = (await api.getSettings()).mediaType || 'gap'; } catch { /* default stands */ }
+  let loadedSize = '3x5';
+  try {
+    const s = await api.getSettings();
+    mediaType = s.mediaType || 'gap';
+    loadedSize = s.loadedSize || '3x5';
+  } catch { /* defaults stand */ }
 
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay';
   overlay.innerHTML = `
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Calibrate printer">
-      <h2>Calibrate printer</h2>
-      <p class="hint">Pick the labels that are loaded, then calibrate.
-        The printer feeds a few labels while it measures them.</p>
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Loaded labels and calibration">
+      <h2>Loaded labels</h2>
+      <p class="eyebrow" style="margin-top:12px">What size is loaded?</p>
+      <div class="size-chips">
+        ${Object.entries(SIZE_LABELS).map(([value, text]) => `
+          <button class="quiet size-chip" data-size="${value}">${text}″</button>`).join('')}
+      </div>
+      <p class="eyebrow">What kind of labels?</p>
       ${MEDIA_TYPES.map((t) => `
         <div class="choice" data-type="${t.value}" role="button" tabindex="0">
           <strong>${t.label}</strong><span>${t.hint}</span>
         </div>`).join('')}
+      <p class="hint">Calibrate after loading a different roll — the printer
+        feeds a few labels while it measures them.</p>
       <div class="row">
         <button id="cal-close" class="quiet">Close</button>
         <button id="cal-go" class="accent">Calibrate</button>
@@ -47,12 +72,29 @@ async function openCalibrate() {
     </div>`;
   document.body.appendChild(overlay);
 
-  const select = (type) => {
+  const persist = async (patch) => {
+    try {
+      await api.putSettings(patch);
+      refreshLoadedChip();
+    } catch (err) { showToast(err.message, true); }
+  };
+  const selectSize = (size, save = true) => {
+    loadedSize = size;
+    overlay.querySelectorAll('.size-chip').forEach((c) =>
+      c.classList.toggle('selected', c.dataset.size === size));
+    if (save) persist({ loadedSize: size });
+  };
+  const select = (type, save = true) => {
     mediaType = type;
     overlay.querySelectorAll('.choice').forEach((c) =>
       c.classList.toggle('selected', c.dataset.type === type));
+    if (save) persist({ mediaType: type });
   };
-  select(mediaType);
+  selectSize(loadedSize, false);
+  select(mediaType, false);
+  overlay.querySelectorAll('.size-chip').forEach((c) => {
+    c.onclick = () => selectSize(c.dataset.size);
+  });
   overlay.querySelectorAll('.choice').forEach((c) => {
     c.onclick = () => select(c.dataset.type);
     c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') select(c.dataset.type); };
@@ -77,6 +119,8 @@ async function openCalibrate() {
 }
 
 document.getElementById('nav-cal').onclick = openCalibrate;
+document.getElementById('loaded-chip').onclick = openCalibrate;
+refreshLoadedChip();
 
 function setTitle(text) {
   if (text) {
