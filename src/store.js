@@ -21,7 +21,7 @@ export function createStore(filePath) {
 
   function assertBarcodeFree(label, exceptId) {
     if (label.fields?.barcode && barcodeExists(label.fields.barcode, exceptId)) {
-      throw new Error('duplicate barcode');
+      throw new Error('duplicate barcode — tap ↻ New to regenerate');
     }
   }
 

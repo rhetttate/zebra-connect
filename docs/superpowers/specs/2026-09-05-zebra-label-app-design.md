@@ -91,7 +91,7 @@ regenerate until unique across all stored labels.
 ## Rendering & printing (hybrid)
 
 One layout engine per label size, rendering at 203 dpi
-(3×5 → 609×1015 dots, 3×2 → 609×406, 2×1.25 → 406×253).
+(3×5 → 576×1015 dots, 3×2 → 576×406, 2×1.25 → 406×253).
 
 - **Preview:** server renders the full label — text and a simulated
   barcode — as a PNG the phone displays live.

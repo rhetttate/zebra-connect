@@ -149,6 +149,14 @@ test('validation errors return JSON bodies and DELETE 404s on unknown ids', asyn
 
   const del = await fetch(`${base}/api/labels/does-not-exist`, { method: 'DELETE' });
   assert.equal(del.status, 404);
+
+  const badLayout = await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x2', fields: { name: 'X' }, layout: { name: { x: 1 } } }),
+  });
+  assert.equal(badLayout.status, 400);
+  assert.match((await badLayout.json()).error, /invalid layout box/);
   close();
 });
 
@@ -176,6 +184,27 @@ test('extract requires an API key, then returns extracted fields', async () => {
         method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: Buffer.from('img'),
       })).json();
       assert.equal(out.name, 'Beans');
+      server.close();
+      resolve();
+    });
+  });
+});
+
+test('extract rejects unsupported image types with 415', async () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-app-'));
+  const app = createApp({ dataDir, extractOverride: async () => ({ name: 'x', description: '' }) });
+  await new Promise((resolve) => {
+    const server = app.listen(0, '127.0.0.1', async () => {
+      const base = `http://127.0.0.1:${server.address().port}`;
+      await fetch(`${base}/api/settings`, {
+        method: 'PUT', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ apiKey: 'sk-test' }),
+      });
+      const res = await fetch(`${base}/api/extract`, {
+        method: 'POST', headers: { 'content-type': 'image/heic' }, body: Buffer.from('img'),
+      });
+      assert.equal(res.status, 415);
+      assert.match((await res.json()).error, /unsupported image type/);
       server.close();
       resolve();
     });

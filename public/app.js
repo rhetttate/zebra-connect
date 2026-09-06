@@ -62,7 +62,12 @@ function renderNew() {
       <button data-size="2x1.25">2" × 1.25"</button>
     </div>
     <div class="row" style="margin-top:20px">
-      <button id="from-photo" class="secondary">📷 Start from photo (3×5)</button>
+      <button id="from-photo" class="secondary">📷 Start from photo</button>
+      <select id="photo-size" style="flex:0 0 110px">
+        <option value="3x5" selected>3" × 5"</option>
+        <option value="3x2">3" × 2"</option>
+        <option value="2x1.25">2" × 1.25"</option>
+      </select>
     </div>
     <div class="row">
       <button id="print-prn" class="secondary">📄 Print a .prn file</button>
@@ -80,13 +85,14 @@ function renderNew() {
     const file = photoInput.files[0];
     if (!file) return;
     showToast('Reading photo…');
+    const size = view.querySelector('#photo-size').value;
     try {
       const fields = await api.extract(file);
-      renderEditor(view, { size: '3x5', fields });
+      renderEditor(view, { size, fields });
     } catch (err) {
       // Per spec: on extraction failure, open a blank editor with an error notice.
       showToast(`Photo reading failed: ${err.message}`, true);
-      renderEditor(view, { size: '3x5' });
+      renderEditor(view, { size });
     }
   };
 

@@ -40,6 +40,12 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
     if (label.fields.barcode && !validateUpcA(label.fields.barcode)) {
       throw Object.assign(new Error('barcode must be a valid 12-digit UPC-A'), { status: 400 });
     }
+    for (const key of ['name', 'description', 'barcode']) {
+      const b = label.layout?.[key];
+      if (!b || ![b.x, b.y, b.w, b.h].every(Number.isFinite)) {
+        throw Object.assign(new Error(`invalid layout box for ${key}`), { status: 400 });
+      }
+    }
     return label;
   }
 
@@ -134,6 +140,9 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
       throw Object.assign(new Error('no API key configured — add one in Settings'), { status: 400 });
     }
     const mediaType = req.headers['content-type'];
+    if (!Buffer.isBuffer(req.body) || !IMAGE_TYPES.includes(mediaType)) {
+      throw Object.assign(new Error('unsupported image type — use a JPEG or PNG photo'), { status: 415 });
+    }
     const extract = extractOverride
       ?? ((buf, type) => extractLabelFields(buf, type, makeClient(config.get().apiKey)));
     try {

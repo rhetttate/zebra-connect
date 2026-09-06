@@ -152,6 +152,7 @@ export function renderEditor(container, labelOrDraft) {
   els.desc.oninput = () => { draft.fields.description = els.desc.value; refreshPreview(); };
   els.barcode.oninput = () => { draft.fields.barcode = els.barcode.value; refreshPreview(); };
   els.showDesc.onchange = () => {
+    if (!draft.options) return;
     draft.options.showDescription = els.showDesc.checked;
     refreshPreview(true);
   };
