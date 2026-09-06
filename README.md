@@ -4,12 +4,28 @@ Design, store, and print labels on a Zebra ZQ620 Plus from your phone.
 
 ## Start the app
 
+The server starts by itself when you log in to this PC
+(`start-zebra-connect.vbs` in the Windows Startup folder runs it hidden
+in the background). To run it by hand instead:
+
     npm install
     npm start
 
 The terminal prints the address to open on your phone, e.g.
 `http://192.168.1.10:3000`. Your phone and the PC must be on the same
 WiFi network as the printer.
+
+## Put it on a phone (app icon)
+
+On each phone, open the address above in the browser, then:
+
+- **iPhone:** Safari → Share button → **Add to Home Screen** → Add.
+- **Android:** Chrome → menu (⋮) → **Add to Home screen**.
+
+You get a "Labels" icon that opens the app full-screen. Tip: reserve
+the PC's IP address in your router (DHCP reservation) so the address
+never changes; if a phone can't connect, check Windows Defender
+Firewall → "Allow an app" → Node.js is allowed on Private networks.
 
 ## First-time setup
 
