@@ -12,6 +12,7 @@ const paths = {
   search: '<circle cx="9" cy="9" r="4.5"/><path d="M12.5 12.5 16 16"/>',
   check: '<path d="M4 10.5l4 4L16 6"/>',
   back: '<path d="M12 4l-6 6 6 6"/>',
+  target: '<circle cx="10" cy="10" r="5.5"/><path d="M10 2.5v3M10 14.5v3M2.5 10h3M14.5 10h3"/><circle cx="10" cy="10" r="1.1"/>',
 };
 
 export function icon(name) {

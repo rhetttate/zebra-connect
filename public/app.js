@@ -15,7 +15,68 @@ const title = document.getElementById('title');
 document.getElementById('nav').innerHTML = `
   <a href="#/" title="Labels">${icon('labels')}</a>
   <a href="#/new" title="New label">${icon('plus')}</a>
+  <button id="nav-cal" class="navlink" title="Calibrate printer">${icon('target')}</button>
   <a href="#/settings" title="Settings">${icon('gear')}</a>`;
+
+const MEDIA_TYPES = [
+  { value: 'gap', label: 'Gap labels', hint: 'a see-through gap between labels' },
+  { value: 'mark', label: 'Black mark labels', hint: 'a black bar printed on the back' },
+  { value: 'continuous', label: 'Continuous paper', hint: 'no gaps or marks — sets the mode only' },
+];
+
+async function openCalibrate() {
+  document.querySelector('.modal-overlay')?.remove();
+  let mediaType = 'gap';
+  try { mediaType = (await api.getSettings()).mediaType || 'gap'; } catch { /* default stands */ }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Calibrate printer">
+      <h2>Calibrate printer</h2>
+      <p class="hint">Pick the labels that are loaded, then calibrate.
+        The printer feeds a few labels while it measures them.</p>
+      ${MEDIA_TYPES.map((t) => `
+        <div class="choice" data-type="${t.value}" role="button" tabindex="0">
+          <strong>${t.label}</strong><span>${t.hint}</span>
+        </div>`).join('')}
+      <div class="row">
+        <button id="cal-close" class="quiet">Close</button>
+        <button id="cal-go" class="accent">Calibrate</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const select = (type) => {
+    mediaType = type;
+    overlay.querySelectorAll('.choice').forEach((c) =>
+      c.classList.toggle('selected', c.dataset.type === type));
+  };
+  select(mediaType);
+  overlay.querySelectorAll('.choice').forEach((c) => {
+    c.onclick = () => select(c.dataset.type);
+    c.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') select(c.dataset.type); };
+  });
+  const close = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('#cal-close').onclick = close;
+  overlay.querySelector('#cal-go').onclick = async () => {
+    const btn = overlay.querySelector('#cal-go');
+    btn.disabled = true;
+    try {
+      await api.calibrate(mediaType);
+      close();
+      showToast(mediaType === 'continuous'
+        ? 'Media type set to continuous'
+        : 'Calibrating — the printer will feed a few labels');
+    } catch (err) {
+      showToast(err.message, true);
+      btn.disabled = false;
+    }
+  };
+}
+
+document.getElementById('nav-cal').onclick = openCalibrate;
 
 function setTitle(text) {
   if (text) {

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const DEFAULTS = { printerIp: '', darkness: 15, apiKey: '' };
+const DEFAULTS = { printerIp: '', darkness: 15, apiKey: '', mediaType: 'gap' };
 
 export function createConfig(filePath) {
   let settings = { ...DEFAULTS };

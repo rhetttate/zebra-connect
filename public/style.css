@@ -37,12 +37,13 @@ header h1 {
 }
 header h1 .dot { color: var(--accent); }
 header nav { display: flex; gap: 4px; }
-header nav a {
+header nav a, header nav .navlink {
   display: flex; align-items: center; justify-content: center;
   width: 38px; height: 38px; border-radius: 8px;
   color: var(--ink); text-decoration: none;
+  background: none; border: 0; padding: 0; cursor: pointer;
 }
-header nav a:active { background: var(--paper); }
+header nav a:active, header nav .navlink:active { background: var(--paper); }
 
 .icon { width: 20px; height: 20px; flex: none; }
 
@@ -188,6 +189,36 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
 /* ---------- extras list ---------- */
 .extra-row { display: flex; gap: 8px; margin: 8px 0; align-items: center; }
 .extra-row button { padding: 9px 11px; }
+
+/* ---------- calibrate modal ---------- */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 20;
+  background: rgba(22, 23, 27, 0.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 18px;
+  width: 100%; max-width: 420px;
+}
+.modal h2 {
+  font-family: var(--mono);
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.modal .hint { margin: 6px 0 12px; }
+.choice {
+  display: flex; flex-direction: column; gap: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.choice span { color: var(--muted); font-size: 13px; }
+.choice.selected { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink); }
 
 /* ---------- toast ---------- */
 #toast {

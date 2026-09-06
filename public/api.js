@@ -31,4 +31,5 @@ export const api = {
   discover: async () => (await call('/api/settings/discover', { method: 'POST' })).json(),
   testPrint: async () => (await call('/api/settings/test-print', { method: 'POST' })).json(),
   zplMode: async () => (await call('/api/settings/zpl-mode', { method: 'POST' })).json(),
+  calibrate: async (mediaType) => (await call('/api/settings/calibrate', json('POST', { mediaType }))).json(),
 };

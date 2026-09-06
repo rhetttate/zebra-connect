@@ -297,3 +297,30 @@ test('a rotated barcode field on an unrotated size also drops the native barcode
   assert.ok(sent[0].includes('^PW576'));
   close();
 });
+
+test('calibrate applies the media type to printer and settings', async () => {
+  const sent = [];
+  const { base, close } = await startApp({
+    sendToPrinter: async (ip, data) => { sent.push(data.toString()); },
+  });
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ printerIp: '10.0.0.9' }),
+  });
+  const res = await fetch(`${base}/api/settings/calibrate`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mediaType: 'mark' }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(sent[0].includes('^MNM'));
+  assert.ok(sent[0].includes('~JC'));
+  const settings = await (await fetch(`${base}/api/settings`)).json();
+  assert.equal(settings.mediaType, 'mark');
+
+  const bad = await fetch(`${base}/api/settings/calibrate`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ mediaType: 'diagonal' }),
+  });
+  assert.equal(bad.status, 400);
+  close();
+});

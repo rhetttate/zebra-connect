@@ -13,7 +13,7 @@ function tmpConfig() {
 
 test('get returns defaults when no file exists', () => {
   const { config } = tmpConfig();
-  assert.deepEqual(config.get(), { printerIp: '', darkness: 15, apiKey: '' });
+  assert.deepEqual(config.get(), { printerIp: '', darkness: 15, apiKey: '', mediaType: 'gap' });
 });
 
 test('update merges, persists, and ignores unknown keys', () => {
@@ -24,4 +24,10 @@ test('update merges, persists, and ignores unknown keys', () => {
   assert.equal('bogus' in out, false);
   const reloaded = createConfig(file);
   assert.equal(reloaded.get().printerIp, '192.168.1.50');
+});
+
+test('mediaType defaults to gap and persists', () => {
+  const { config } = tmpConfig();
+  assert.equal(config.get().mediaType, 'gap');
+  assert.equal(config.update({ mediaType: 'mark' }).mediaType, 'mark');
 });

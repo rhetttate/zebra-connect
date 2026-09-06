@@ -31,3 +31,12 @@ export function buildTestZpl() {
 export function setZplModeCommand() {
   return '! U1 setvar "device.languages" "hybrid_xml_zpl"\r\n';
 }
+
+const MEDIA_TRACKING = { gap: 'Y', mark: 'M', continuous: 'N' };
+
+export function buildCalibrationZpl(mediaType) {
+  const tracking = MEDIA_TRACKING[mediaType];
+  if (!tracking) throw new Error('unknown media type — use gap, mark, or continuous');
+  const setMode = `^XA^MN${tracking}^JUS^XZ\n`;
+  return mediaType === 'continuous' ? setMode : setMode + '~JC\n';
+}

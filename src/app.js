@@ -7,7 +7,7 @@ import crypto from 'node:crypto';
 import { SIZES, defaultLayout, defaultShowDescription, printRotation } from './layout.js';
 import { generateUpcA, validateUpcA } from './barcode.js';
 import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from './render.js';
-import { buildLabelZpl, buildTestZpl, setZplModeCommand } from './zpl.js';
+import { buildLabelZpl, buildTestZpl, buildCalibrationZpl, setZplModeCommand } from './zpl.js';
 import * as printerLib from './printer.js';
 import { extractLabelFields, makeClient } from './extract.js';
 
@@ -199,6 +199,20 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
 
   app.post('/api/settings/test-print', wrap(async (req, res) => {
     await printer.sendToPrinter(requirePrinterIp(), buildTestZpl());
+    res.json({ ok: true });
+  }));
+
+  app.post('/api/settings/calibrate', wrap(async (req, res) => {
+    const mediaType = req.body?.mediaType;
+    let zpl;
+    try {
+      zpl = buildCalibrationZpl(mediaType);
+    } catch (err) {
+      throw Object.assign(err, { status: 400 });
+    }
+    const ip = requirePrinterIp();
+    config.update({ mediaType });
+    await printer.sendToPrinter(ip, zpl);
     res.json({ ok: true });
   }));
 

@@ -78,6 +78,11 @@ verify the right one.
 6. **Settings:** printer IP + "find my printer" subnet scan (probes port
    9100), darkness setting, ZPL/CPCL mode, test print button, API key
    status indicator.
+7. **Calibration:** a top-bar control opens a popup to pick the loaded
+   media — gap labels (`^MNY`), black mark labels (`^MNM`), or
+   continuous paper (`^MNN`) — saved to the printer (`^JUS`) and
+   followed by a sensor calibration feed (`~JC`, skipped for
+   continuous). The chosen media type persists in app settings.
 
 ## Data model
 

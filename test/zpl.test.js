@@ -46,3 +46,12 @@ test('buildTestZpl and setZplModeCommand return fixed commands', () => {
   assert.ok(buildTestZpl().includes('Zebra Connect'));
   assert.equal(setZplModeCommand(), '! U1 setvar "device.languages" "hybrid_xml_zpl"\r\n');
 });
+
+test('buildCalibrationZpl sets media tracking and calibrates', async () => {
+  const { buildCalibrationZpl } = await import('../src/zpl.js');
+  assert.equal(buildCalibrationZpl('gap'), '^XA^MNY^JUS^XZ\n~JC\n');
+  assert.equal(buildCalibrationZpl('mark'), '^XA^MNM^JUS^XZ\n~JC\n');
+  // continuous has nothing to sense: set the mode, skip the calibration feed
+  assert.equal(buildCalibrationZpl('continuous'), '^XA^MNN^JUS^XZ\n');
+  assert.throws(() => buildCalibrationZpl('sideways'), /media type/);
+});

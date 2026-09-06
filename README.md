@@ -18,7 +18,11 @@ WiFi network as the printer.
 2. In **Settings**, set the printer IP and tap **Test print**.
 3. If the test print is blank or prints gibberish, tap **Fix printer
    language**, power-cycle the printer, and test again.
-4. For photo extraction, paste an Anthropic API key
+4. Tap the crosshair icon in the top bar to calibrate: pick **Gap
+   labels**, **Black mark labels**, or **Continuous paper**, then
+   **Calibrate** — the printer feeds a few labels while it measures
+   them. Do this whenever you load a different kind of label roll.
+5. For photo extraction, paste an Anthropic API key
    (console.anthropic.com) into Settings. Photo extraction uses
    Claude with server-side refusal fallbacks enabled.
 
