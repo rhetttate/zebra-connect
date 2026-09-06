@@ -13,9 +13,17 @@ printing, and AI photo extraction.
 ## Goals
 
 - Print to a ZQ620 Plus on the local network (TCP port 9100).
-- Three label sizes: 3×5 in, 3×2 in, 2×1.25 in (printer is 203 dpi).
-- 3×5 labels: ingredient name, UPC-A barcode, description.
+- Three label sizes: 5×3 in (designed landscape, rotated 90° at print
+  time to fit the 3-inch print head), 3×2 in, 2×1.25 in (printer is
+  203 dpi).
+- 5×3 labels: ingredient name, UPC-A barcode, description.
 - 3×2 and 2×1.25 labels: name + barcode by default; description toggleable.
+- Extra free-text fields can be added to any label (lot numbers, dates,
+  allergens); each is draggable, resizable, rotatable, and removable.
+- Every field (built-in or extra) can be rotated in 90° steps; rotation
+  is honored identically in preview and print. The barcode prints as a
+  native ZPL field only when nothing rotates it; otherwise it is drawn
+  into the bitmap at exact dot-module resolution.
 - Photo → Claude vision API extracts name/description → pre-fills the editor.
 - Auto-generate random, unique UPC-A barcodes for new labels.
 - Store every label; edit and reprint any of them later.
@@ -80,9 +88,12 @@ Label record:
 - `fields` — `{ name, description, barcode }`
 - `options` — `{ showDescription }`
 - `layout` — per-element boxes in printer dots:
-  `{ name: {x, y, w, h}, description: {x, y, w, h}, barcode: {x, y, w, h} }`.
-  Text auto-fits its box; the barcode fills its box. Each size has a
-  built-in default layout used until the user moves something.
+  `{ name: {x, y, w, h, rotation}, description: {…}, barcode: {…} }`.
+  Text auto-fits its box; the barcode fills its box; `rotation` is one of
+  0/90/180/270. Each size has a built-in default layout used until the
+  user moves something.
+- `extras` — `[{ id, text, box: {x, y, w, h}, rotation }]` free text
+  fields added by the user.
 - `createdAt`, `updatedAt`
 
 Barcode generation: 11 random digits + computed UPC-A check digit;
@@ -91,7 +102,8 @@ regenerate until unique across all stored labels.
 ## Rendering & printing (hybrid)
 
 One layout engine per label size, rendering at 203 dpi
-(3×5 → 576×1015 dots, 3×2 → 576×406, 2×1.25 → 406×253).
+(5×3 → 1015×576 dots designed landscape and rotated 90° for printing,
+3×2 → 576×406, 2×1.25 → 406×253).
 
 - **Preview:** server renders the full label — text and a simulated
   barcode — as a PNG the phone displays live.

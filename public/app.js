@@ -1,9 +1,30 @@
 import { api } from './api.js';
+import { icon } from './icons.js';
 import { renderEditor } from './editor.js';
 import { renderSettings } from './settings.js';
 
+export const SIZE_LABELS = {
+  '3x5': '5 × 3',
+  '3x2': '3 × 2',
+  '2x1.25': '2 × 1.25',
+};
+
 const view = document.getElementById('view');
 const title = document.getElementById('title');
+
+document.getElementById('nav').innerHTML = `
+  <a href="#/" title="Labels">${icon('labels')}</a>
+  <a href="#/new" title="New label">${icon('plus')}</a>
+  <a href="#/settings" title="Settings">${icon('gear')}</a>`;
+
+function setTitle(text) {
+  if (text) {
+    title.textContent = text;
+    title.classList.remove('wordmark');
+  } else {
+    title.innerHTML = 'Zebra<span class="dot">.</span>Connect';
+  }
+}
 
 export function showToast(message, isError = false) {
   const toast = document.getElementById('toast');
@@ -17,12 +38,12 @@ export function showToast(message, isError = false) {
 export function navigate(hash) { location.hash = hash; }
 
 async function renderLibrary() {
-  title.textContent = 'Labels';
+  setTitle('');
   const labels = await api.listLabels();
   view.innerHTML = `
-    <input id="search" placeholder="Search labels…">
+    <input id="search" type="search" placeholder="Search labels">
     <div id="cards" style="margin-top:12px"></div>
-    ${labels.length ? '' : '<p style="color:#666;margin-top:16px">No labels yet — tap ➕ to make one.</p>'}`;
+    ${labels.length ? '' : '<p class="empty">No labels yet. Tap + to make your first one.</p>'}`;
   const cards = view.querySelector('#cards');
 
   function draw(filter = '') {
@@ -40,9 +61,12 @@ async function renderLibrary() {
           <div class="sub"></div>
         </div>`;
       card.querySelector('.name').textContent = label.fields.name || '(unnamed)';
-      card.querySelector('.sub').textContent = `${label.size} in · ${label.fields.barcode}`;
+      card.querySelector('.sub').textContent =
+        `${SIZE_LABELS[label.size] ?? label.size}"  ·  ${label.fields.barcode}`;
       api.previewBlob(label).then((blob) => {
-        card.querySelector('img').src = URL.createObjectURL(blob);
+        const img = card.querySelector('img');
+        img.onload = () => URL.revokeObjectURL(img.src);
+        img.src = URL.createObjectURL(blob);
       }).catch(() => {});
       card.onclick = () => navigate(`#/edit/${label.id}`);
       cards.appendChild(card);
@@ -53,24 +77,27 @@ async function renderLibrary() {
 }
 
 function renderNew() {
-  title.textContent = 'New label';
+  setTitle('New label');
   view.innerHTML = `
-    <p>Pick a size:</p>
+    <p class="eyebrow">Start blank</p>
     <div class="size-grid">
-      <button data-size="3x5">3" × 5"</button>
-      <button data-size="3x2">3" × 2"</button>
-      <button data-size="2x1.25">2" × 1.25"</button>
+      <button class="quiet" data-size="3x5">5 × 3<span class="in">inches</span></button>
+      <button class="quiet" data-size="3x2">3 × 2<span class="in">inches</span></button>
+      <button class="quiet" data-size="2x1.25">2 × 1.25<span class="in">inches</span></button>
     </div>
-    <div class="row" style="margin-top:20px">
-      <button id="from-photo" class="secondary">📷 Start from photo</button>
-      <select id="photo-size" style="flex:0 0 110px">
-        <option value="3x5" selected>3" × 5"</option>
-        <option value="3x2">3" × 2"</option>
-        <option value="2x1.25">2" × 1.25"</option>
+    <p class="eyebrow">Start from a photo</p>
+    <div class="row">
+      <button id="from-photo" class="quiet">${icon('camera')} Read a photo</button>
+      <select id="photo-size" class="tight" style="width:110px">
+        <option value="3x5" selected>5 × 3</option>
+        <option value="3x2">3 × 2</option>
+        <option value="2x1.25">2 × 1.25</option>
       </select>
     </div>
+    <p class="hint">Snap the product or its packaging. The name and description fill in for you.</p>
+    <p class="eyebrow">Printer file</p>
     <div class="row">
-      <button id="print-prn" class="secondary">📄 Print a .prn file</button>
+      <button id="print-prn" class="quiet">${icon('file')} Print a .prn file</button>
     </div>
     <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
     <input id="prn-input" type="file" accept=".prn" hidden>`;
@@ -84,13 +111,12 @@ function renderNew() {
   photoInput.onchange = async () => {
     const file = photoInput.files[0];
     if (!file) return;
-    showToast('Reading photo…');
     const size = view.querySelector('#photo-size').value;
+    showToast('Reading photo…');
     try {
       const fields = await api.extract(file);
       renderEditor(view, { size, fields });
     } catch (err) {
-      // Per spec: on extraction failure, open a blank editor with an error notice.
       showToast(`Photo reading failed: ${err.message}`, true);
       renderEditor(view, { size });
     }
@@ -103,7 +129,7 @@ function renderNew() {
     if (!file) return;
     try {
       await api.printRaw(file);
-      showToast('Sent to printer 🖨');
+      showToast('Sent to printer');
     } catch (err) {
       showToast(err.message, true);
     }
@@ -116,10 +142,10 @@ async function route() {
     if (hash === '#/' || hash === '') await renderLibrary();
     else if (hash === '#/new') renderNew();
     else if (hash.startsWith('#/edit/')) {
-      title.textContent = 'Edit label';
+      setTitle('Edit label');
       renderEditor(view, await api.getLabel(hash.slice(7)));
     } else if (hash === '#/settings') {
-      title.textContent = 'Settings';
+      setTitle('Settings');
       await renderSettings(view);
     }
   } catch (err) {
