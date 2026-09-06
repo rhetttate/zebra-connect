@@ -3,9 +3,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createStore } from './store.js';
 import { createConfig } from './config.js';
-import { SIZES, defaultLayout, defaultShowDescription } from './layout.js';
+import crypto from 'node:crypto';
+import { SIZES, defaultLayout, defaultShowDescription, printRotation } from './layout.js';
 import { generateUpcA, validateUpcA } from './barcode.js';
-import { renderPreview, renderPrintBitmap } from './render.js';
+import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from './render.js';
 import { buildLabelZpl, buildTestZpl, setZplModeCommand } from './zpl.js';
 import * as printerLib from './printer.js';
 import { extractLabelFields, makeClient } from './extract.js';
@@ -23,6 +24,20 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(path.join(here, '..', 'public')));
 
+  const ROTATIONS = [0, 90, 180, 270];
+
+  function validateBox(box, what) {
+    if (!box || ![box.x, box.y, box.w, box.h].every(Number.isFinite)) {
+      throw Object.assign(new Error(`invalid layout box for ${what}`), { status: 400 });
+    }
+  }
+
+  function validateRotation(rotation, what) {
+    if (!ROTATIONS.includes(rotation)) {
+      throw Object.assign(new Error(`invalid rotation for ${what} — use 0, 90, 180, or 270`), { status: 400 });
+    }
+  }
+
   function normalizeDraft(draft) {
     if (!SIZES[draft.size]) throw Object.assign(new Error('unknown size'), { status: 400 });
     const label = {
@@ -36,15 +51,25 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
         showDescription: draft.options?.showDescription ?? defaultShowDescription(draft.size),
       },
       layout: draft.layout ?? defaultLayout(draft.size),
+      extras: (Array.isArray(draft.extras) ? draft.extras : []).slice(0, 20).map((extra) => ({
+        id: typeof extra.id === 'string' && extra.id ? extra.id : crypto.randomUUID(),
+        text: String(extra.text ?? ''),
+        box: extra.box,
+        rotation: extra.rotation ?? 0,
+      })),
     };
     if (label.fields.barcode && !validateUpcA(label.fields.barcode)) {
       throw Object.assign(new Error('barcode must be a valid 12-digit UPC-A'), { status: 400 });
     }
     for (const key of ['name', 'description', 'barcode']) {
       const b = label.layout?.[key];
-      if (!b || ![b.x, b.y, b.w, b.h].every(Number.isFinite)) {
-        throw Object.assign(new Error(`invalid layout box for ${key}`), { status: 400 });
-      }
+      validateBox(b, key);
+      b.rotation = b.rotation ?? 0;
+      validateRotation(b.rotation, key);
+    }
+    for (const extra of label.extras) {
+      validateBox(extra.box, 'extra field');
+      validateRotation(extra.rotation, 'extra field');
     }
     return label;
   }
@@ -113,13 +138,18 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
     const ip = requirePrinterIp();
     const label = normalizeDraft(req.body.label ?? {});
     const quantity = Math.min(Math.max(parseInt(req.body.quantity, 10) || 1, 1), 100);
-    const bitmap = await renderPrintBitmap(label);
+    // The barcode stays a native ZPL field only when nothing rotates it;
+    // otherwise it is drawn into the bitmap at exact dot resolution.
+    const rotation = printRotation(label.size);
+    const nativeBarcode = rotation === 0 && (label.layout.barcode.rotation ?? 0) === 0;
+    let bitmap = await renderPrintBitmap(label, { includeBarcode: !nativeBarcode });
+    if (rotation === 90) bitmap = rotateBitmap90CW(bitmap);
     const zpl = buildLabelZpl({
       width: bitmap.width,
       height: bitmap.height,
       bitmap,
-      barcode: label.fields.barcode,
-      barcodeBox: label.layout.barcode,
+      barcode: nativeBarcode ? label.fields.barcode : '',
+      barcodeBox: nativeBarcode ? label.layout.barcode : null,
       quantity,
       darkness: config.get().darkness,
     });

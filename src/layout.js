@@ -1,14 +1,18 @@
 export const SIZES = {
-  '3x5': { width: 576, height: 1015 },
+  '3x5': { width: 1015, height: 576 },
   '3x2': { width: 576, height: 406 },
   '2x1.25': { width: 406, height: 253 },
 };
 
+// The ZQ620's print head is 576 dots wide, so the landscape 5x3 designer
+// canvas is rotated 90° clockwise at print time.
+const PRINT_ROTATION = { '3x5': 90, '3x2': 0, '2x1.25': 0 };
+
 const DEFAULT_LAYOUTS = {
   '3x5': {
-    name: { x: 20, y: 20, w: 536, h: 120 },
-    description: { x: 20, y: 170, w: 536, h: 540 },
-    barcode: { x: 98, y: 760, w: 380, h: 220 },
+    name: { x: 30, y: 25, w: 955, h: 100 },
+    description: { x: 30, y: 150, w: 590, h: 400 },
+    barcode: { x: 650, y: 180, w: 335, h: 220 },
   },
   '3x2': {
     name: { x: 20, y: 20, w: 536, h: 110 },
@@ -21,6 +25,10 @@ const DEFAULT_LAYOUTS = {
     barcode: { x: 58, y: 126, w: 290, h: 122 },
   },
 };
+
+export function printRotation(size) {
+  return PRINT_ROTATION[size] ?? 0;
+}
 
 export function defaultLayout(size) {
   return structuredClone(DEFAULT_LAYOUTS[size]);

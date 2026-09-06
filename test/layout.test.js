@@ -1,11 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIZES, defaultLayout, defaultShowDescription, barcodeGeometry } from '../src/layout.js';
+import { SIZES, defaultLayout, defaultShowDescription, barcodeGeometry, printRotation } from '../src/layout.js';
 
-test('SIZES match the 203dpi dot dimensions', () => {
-  assert.deepEqual(SIZES['3x5'], { width: 576, height: 1015 });
+test('SIZES match the 203dpi dot dimensions (3x5 designs as landscape 5x3)', () => {
+  assert.deepEqual(SIZES['3x5'], { width: 1015, height: 576 });
   assert.deepEqual(SIZES['3x2'], { width: 576, height: 406 });
   assert.deepEqual(SIZES['2x1.25'], { width: 406, height: 253 });
+});
+
+test('printRotation is 90 for the landscape 5x3 and 0 elsewhere', () => {
+  assert.equal(printRotation('3x5'), 90);
+  assert.equal(printRotation('3x2'), 0);
+  assert.equal(printRotation('2x1.25'), 0);
 });
 
 test('defaultLayout returns boxes inside the label for every size', () => {

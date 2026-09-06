@@ -210,3 +210,90 @@ test('extract rejects unsupported image types with 415', async () => {
     });
   });
 });
+
+test('labels normalize extras and reject invalid rotations', async () => {
+  const { base, close } = await startApp();
+  const created = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      size: '3x2',
+      fields: { name: 'X' },
+      extras: [{ text: 'LOT 42', box: { x: 40, y: 300, w: 300, h: 60 }, rotation: 90 }],
+    }),
+  })).json();
+  assert.equal(created.extras.length, 1);
+  assert.ok(created.extras[0].id);
+  assert.equal(created.extras[0].text, 'LOT 42');
+  assert.equal(created.extras[0].rotation, 90);
+  // old labels / drafts without extras normalize to []
+  const plain = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x2', fields: { name: 'Y' } }),
+  })).json();
+  assert.deepEqual(plain.extras, []);
+
+  const badRotation = await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      size: '3x2',
+      fields: { name: 'Z' },
+      extras: [{ text: 'bad', box: { x: 0, y: 0, w: 50, h: 50 }, rotation: 45 }],
+    }),
+  });
+  assert.equal(badRotation.status, 400);
+  assert.match((await badRotation.json()).error, /rotation/);
+  close();
+});
+
+test('printing a 5x3 sends a rotated bitmap job with no native barcode field', async () => {
+  const sent = [];
+  const { base, close } = await startApp({
+    sendToPrinter: async (ip, data) => { sent.push(data.toString()); },
+  });
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ printerIp: '10.0.0.9' }),
+  });
+  const res = await fetch(`${base}/api/print`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      label: { size: '3x5', fields: { name: 'Wide', description: 'D', barcode: '036000291452' } },
+      quantity: 1,
+    }),
+  });
+  assert.equal(res.status, 200);
+  assert.ok(sent[0].includes('^PW576'), 'printed width must be the physical 576');
+  assert.ok(sent[0].includes('^LL1015'), 'printed length must be 1015');
+  assert.ok(!sent[0].includes('^BUN'), 'rotated labels draw the barcode into the bitmap');
+  close();
+});
+
+test('a rotated barcode field on an unrotated size also drops the native barcode', async () => {
+  const sent = [];
+  const { base, close } = await startApp({
+    sendToPrinter: async (ip, data) => { sent.push(data.toString()); },
+  });
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ printerIp: '10.0.0.9' }),
+  });
+  const layout = {
+    name: { x: 20, y: 20, w: 536, h: 110 },
+    description: { x: 20, y: 140, w: 536, h: 80 },
+    barcode: { x: 98, y: 225, w: 380, h: 175, rotation: 90 },
+  };
+  await fetch(`${base}/api/print`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      label: { size: '3x2', fields: { name: 'X', description: '', barcode: '036000291452' }, layout },
+    }),
+  });
+  assert.ok(!sent[0].includes('^BUN'));
+  assert.ok(sent[0].includes('^PW576'));
+  close();
+});
