@@ -229,7 +229,9 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   }));
 
   // --- print station (the tablet by the printer) ---
+  let stationLastSeen = 0;
   app.post('/api/station/next', wrap((req, res) => {
+    stationLastSeen = Date.now();
     const job = queue.next();
     if (!job) return res.status(204).end();
     res.json(job);
@@ -246,7 +248,12 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   }));
 
   app.get('/api/station/status', wrap((req, res) => {
-    res.json(queue.status());
+    res.json({
+      ...queue.status(),
+      stationSeenSecondsAgo: stationLastSeen
+        ? Math.round((Date.now() - stationLastSeen) / 1000)
+        : null,
+    });
   }));
 
   return app;

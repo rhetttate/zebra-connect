@@ -373,3 +373,13 @@ test('station mode does not require a printer IP and network mode still works', 
   assert.equal(noIp.status, 400);
   close();
 });
+
+test('station status reports when a station last polled', async () => {
+  const { base, close } = await startApp();
+  const before = await (await fetch(`${base}/api/station/status`)).json();
+  assert.equal(before.stationSeenSecondsAgo, null);
+  await fetch(`${base}/api/station/next`, { method: 'POST' });
+  const after = await (await fetch(`${base}/api/station/status`)).json();
+  assert.ok(after.stationSeenSecondsAgo !== null && after.stationSeenSecondsAgo < 5);
+  close();
+});
