@@ -13,7 +13,7 @@ function tmpConfig() {
 
 test('get returns defaults when no file exists', () => {
   const { config } = tmpConfig();
-  assert.deepEqual(config.get(), { printerIp: '', darkness: 15, apiKey: '', mediaType: 'gap', loadedSize: '3x5' });
+  assert.deepEqual(config.get(), { printerIp: '', darkness: 15, apiKey: '', mediaType: 'gap', loadedSize: '3x5', connection: 'network' });
 });
 
 test('update merges, persists, and ignores unknown keys', () => {

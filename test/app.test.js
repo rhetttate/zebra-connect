@@ -324,3 +324,52 @@ test('calibrate applies the media type to printer and settings', async () => {
   assert.equal(bad.status, 400);
   close();
 });
+
+test('station mode queues jobs for the tablet instead of TCP', async () => {
+  const sent = [];
+  const { base, close } = await startApp({
+    sendToPrinter: async (ip, data) => { sent.push(data); },
+  });
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ connection: 'station' }),
+  });
+  const res = await (await fetch(`${base}/api/print`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      label: { size: '3x2', fields: { name: 'Queued', description: '', barcode: '' } },
+    }),
+  })).json();
+  assert.equal(res.ok, true);
+  assert.equal(res.queued, true);
+  assert.equal(sent.length, 0, 'nothing goes over TCP in station mode');
+
+  const job = await (await fetch(`${base}/api/station/next`, { method: 'POST' })).json();
+  assert.ok(Buffer.from(job.zpl, 'base64').toString().includes('^XA'));
+  assert.equal((await fetch(`${base}/api/station/${job.id}/done`, { method: 'POST' })).status, 200);
+  assert.equal((await fetch(`${base}/api/station/next`, { method: 'POST' })).status, 204);
+  close();
+});
+
+test('station mode does not require a printer IP and network mode still works', async () => {
+  const sent = [];
+  const { base, close } = await startApp({
+    sendToPrinter: async (ip, data) => { sent.push(data.toString()); },
+  });
+  // station mode: test print queues without an IP
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ connection: 'station' }),
+  });
+  const t = await fetch(`${base}/api/settings/test-print`, { method: 'POST' });
+  assert.equal(t.status, 200);
+  assert.equal((await t.json()).queued, true);
+  // back to network mode: printing without an IP is still a 400
+  await fetch(`${base}/api/settings`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ connection: 'network' }),
+  });
+  const noIp = await fetch(`${base}/api/settings/test-print`, { method: 'POST' });
+  assert.equal(noIp.status, 400);
+  close();
+});

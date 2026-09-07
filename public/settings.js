@@ -5,6 +5,19 @@ import { icon } from './icons.js';
 export async function renderSettings(container) {
   const settings = await api.getSettings();
   container.innerHTML = `
+    <label class="field">How prints reach the printer</label>
+    <div class="choice" data-conn="network">
+      <strong>WiFi network</strong>
+      <span>the printer is on the same network — prints go straight to its IP</span>
+    </div>
+    <div class="choice" data-conn="station">
+      <strong>Bluetooth print station</strong>
+      <span>a tablet near the printer relays prints over Bluetooth</span>
+    </div>
+    <p class="hint" id="station-hint" hidden>
+      On the tablet, open <strong>${location.origin}/#/station</strong> in Chrome
+      and tap "Connect printer". Keep that page open.
+    </p>
     <label class="field">Printer IP address</label>
     <div class="row">
       <input id="s-ip" placeholder="e.g. 192.168.1.50" autocomplete="off">
@@ -35,6 +48,20 @@ export async function renderSettings(container) {
   const key = container.querySelector('#s-key');
   ip.value = settings.printerIp;
   darkness.value = settings.darkness;
+
+  const selectConnection = (mode) => {
+    container.querySelectorAll('[data-conn]').forEach((c) =>
+      c.classList.toggle('selected', c.dataset.conn === mode));
+    container.querySelector('#station-hint').hidden = mode !== 'station';
+  };
+  selectConnection(settings.connection || 'network');
+  container.querySelectorAll('[data-conn]').forEach((c) => {
+    c.onclick = async () => {
+      selectConnection(c.dataset.conn);
+      try { await api.putSettings({ connection: c.dataset.conn }); }
+      catch (err) { showToast(err.message, true); }
+    };
+  });
 
   container.querySelector('#s-save').onclick = async () => {
     try {

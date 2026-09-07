@@ -59,6 +59,24 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
   dates, allergens. Layouts and extra fields save per label.
 - **Print a .prn file** sends any prepared printer file byte-for-byte.
 
+## Bluetooth print station (printer not on WiFi)
+
+When the printer can't join the network (e.g. WPA3-only WiFi), use a
+tablet docked next to it as the relay:
+
+1. In **Settings**, set "How prints reach the printer" to **Bluetooth
+   print station**.
+2. On the tablet (Android, Chrome), open `http://<server-ip>:3000/#/station`.
+   The first visit shows a one-time Chrome flag to enable Bluetooth for
+   this site — follow the on-screen steps, relaunch Chrome, return.
+3. Tap **Connect printer** and pick the Zebra from the list.
+4. Leave the page open (it keeps the screen awake). Prints from any
+   phone queue up and print automatically; the page shows a live log.
+
+The printer needs Bluetooth LE enabled
+(`! U1 setvar "bluetooth.le.controller_mode" "both"` — already done for
+this printer). Big 5×3 labels take a few extra seconds over Bluetooth.
+
 ## Where data lives
 
 `data/labels.json` (your labels) and `data/config.json` (settings,

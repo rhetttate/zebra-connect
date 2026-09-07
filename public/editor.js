@@ -326,8 +326,8 @@ export function renderEditor(container, labelOrDraft) {
         }
       } catch { /* settings unavailable — don't block printing */ }
       await api.updateLabel(draft.id, draft);
-      await api.printLabel(draft, parseInt(els.qty.value, 10) || 1);
-      showToast('Sent to printer');
+      const result = await api.printLabel(draft, parseInt(els.qty.value, 10) || 1);
+      showToast(result.queued ? 'Queued — printing at the station' : 'Sent to printer');
     } catch (err) { showToast(err.message, true); }
     btn.disabled = false;
   };

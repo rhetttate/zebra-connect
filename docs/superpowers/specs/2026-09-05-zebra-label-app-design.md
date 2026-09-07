@@ -35,7 +35,9 @@ printing, and AI photo extraction.
 
 ## Non-goals
 
-- BLE printing (may be revisited later).
+- ~~BLE printing~~ (revisited: a Bluetooth print-station mode now exists —
+  the server queues jobs and a tablet page near the printer relays them
+  over Web Bluetooth when the printer can't join the WiFi).
 - Native mobile app.
 - Multi-user access control (single user on a trusted home LAN).
 - Arbitrary extra elements (images, extra text boxes, shapes) — the

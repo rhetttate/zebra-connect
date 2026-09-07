@@ -2,6 +2,7 @@ import { api } from './api.js';
 import { icon } from './icons.js';
 import { renderEditor } from './editor.js';
 import { renderSettings } from './settings.js';
+import { renderStation } from './station.js';
 
 export const SIZE_LABELS = {
   '3x5': '5 × 3',
@@ -106,11 +107,13 @@ async function openCalibrate() {
     const btn = overlay.querySelector('#cal-go');
     btn.disabled = true;
     try {
-      await api.calibrate(mediaType);
+      const result = await api.calibrate(mediaType);
       close();
       showToast(mediaType === 'continuous'
         ? 'Media type set to continuous'
-        : 'Calibrating — the printer will feed a few labels');
+        : result.queued
+          ? 'Calibration queued — it runs at the print station'
+          : 'Calibrating — the printer will feed a few labels');
     } catch (err) {
       showToast(err.message, true);
       btn.disabled = false;
@@ -233,8 +236,8 @@ function renderNew() {
     const file = prnInput.files[0];
     if (!file) return;
     try {
-      await api.printRaw(file);
-      showToast('Sent to printer');
+      const result = await api.printRaw(file);
+      showToast(result.queued ? 'Queued — printing at the station' : 'Sent to printer');
     } catch (err) {
       showToast(err.message, true);
     }
@@ -252,6 +255,9 @@ async function route() {
     } else if (hash === '#/settings') {
       setTitle('Settings');
       await renderSettings(view);
+    } else if (hash === '#/station') {
+      setTitle('Print station');
+      renderStation(view);
     }
   } catch (err) {
     showToast(err.message, true);

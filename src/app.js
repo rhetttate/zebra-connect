@@ -10,6 +10,7 @@ import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from './render.js'
 import { buildLabelZpl, buildTestZpl, buildCalibrationZpl, setZplModeCommand } from './zpl.js';
 import * as printerLib from './printer.js';
 import { extractLabelFields, makeClient } from './extract.js';
+import { createQueue } from './queue.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -80,6 +81,20 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
     return ip;
   }
 
+  const queue = createQueue();
+  app.locals.queue = queue;
+
+  // In station mode, jobs wait for the tablet by the printer to relay
+  // them over Bluetooth; in network mode they go straight out over TCP.
+  async function dispatchToPrinter(zpl, name) {
+    if (config.get().connection === 'station') {
+      queue.add(zpl, name);
+      return { ok: true, queued: true };
+    }
+    await printer.sendToPrinter(requirePrinterIp(), zpl);
+    return { ok: true, queued: false };
+  }
+
   const wrap = (fn) => (req, res) => {
     Promise.resolve().then(() => fn(req, res)).catch((err) => {
       const status = err.status ?? (/reach printer/i.test(err.message) ? 502 : 500);
@@ -135,7 +150,6 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   }));
 
   app.post('/api/print', wrap(async (req, res) => {
-    const ip = requirePrinterIp();
     const label = normalizeDraft(req.body.label ?? {});
     const quantity = Math.min(Math.max(parseInt(req.body.quantity, 10) || 1, 1), 100);
     // The barcode stays a native ZPL field only when nothing rotates it;
@@ -153,14 +167,11 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
       quantity,
       darkness: config.get().darkness,
     });
-    await printer.sendToPrinter(ip, zpl);
-    res.json({ ok: true });
+    res.json(await dispatchToPrinter(zpl, label.fields.name || 'Label'));
   }));
 
   app.post('/api/print-raw', express.raw({ type: () => true, limit: '20mb' }), wrap(async (req, res) => {
-    const ip = requirePrinterIp();
-    await printer.sendToPrinter(ip, req.body);
-    res.json({ ok: true });
+    res.json(await dispatchToPrinter(req.body, 'Raw .prn file'));
   }));
 
   const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
@@ -198,8 +209,7 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
   }));
 
   app.post('/api/settings/test-print', wrap(async (req, res) => {
-    await printer.sendToPrinter(requirePrinterIp(), buildTestZpl());
-    res.json({ ok: true });
+    res.json(await dispatchToPrinter(buildTestZpl(), 'Test print'));
   }));
 
   app.post('/api/settings/calibrate', wrap(async (req, res) => {
@@ -210,15 +220,33 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
     } catch (err) {
       throw Object.assign(err, { status: 400 });
     }
-    const ip = requirePrinterIp();
     config.update({ mediaType });
-    await printer.sendToPrinter(ip, zpl);
-    res.json({ ok: true });
+    res.json(await dispatchToPrinter(zpl, 'Calibration'));
   }));
 
   app.post('/api/settings/zpl-mode', wrap(async (req, res) => {
-    await printer.sendToPrinter(requirePrinterIp(), setZplModeCommand());
+    res.json(await dispatchToPrinter(setZplModeCommand(), 'Set ZPL mode'));
+  }));
+
+  // --- print station (the tablet by the printer) ---
+  app.post('/api/station/next', wrap((req, res) => {
+    const job = queue.next();
+    if (!job) return res.status(204).end();
+    res.json(job);
+  }));
+
+  app.post('/api/station/:id/done', wrap((req, res) => {
+    if (!queue.complete(req.params.id)) return res.status(404).json({ error: 'unknown job' });
     res.json({ ok: true });
+  }));
+
+  app.post('/api/station/:id/failed', wrap((req, res) => {
+    if (!queue.fail(req.params.id, req.body?.error)) return res.status(404).json({ error: 'unknown job' });
+    res.json({ ok: true });
+  }));
+
+  app.get('/api/station/status', wrap((req, res) => {
+    res.json(queue.status());
   }));
 
   return app;
