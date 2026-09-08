@@ -271,6 +271,6 @@ header nav #station-chip.bad { color: #d9534f; border-color: #d9534f; }
 .fe-box.rotated { cursor: default; border-style: dotted; }
 
 .maker textarea { width: 100%; box-sizing: border-box; }
-.maker-photo { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+.maker-photo:not([hidden]) { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
 .maker-photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #ddd); }
 .maker-photo .remove { padding: 6px 10px; }
