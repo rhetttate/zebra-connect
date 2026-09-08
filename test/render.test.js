@@ -117,3 +117,30 @@ test('renderPrintBitmap can include the barcode when asked', async () => {
   }, 0);
   assert.ok(count(withBc) > count(without) + 500, 'barcode bars should add many black pixels');
 });
+
+function blackIn(bmp, x0, x1, y0, y1) {
+  for (let y = y0; y < y1; y++) {
+    for (let x = x0; x < x1; x++) {
+      if (bmp.data[y * bmp.bytesPerRow + (x >> 3)] & (0x80 >> (x & 7))) return true;
+    }
+  }
+  return false;
+}
+
+test('wrapped extras honour align L (left, top anchored) and default to centred', async () => {
+  const base = {
+    size: '3x2',
+    fields: { name: '', description: '', barcode: '' },
+    options: { showDescription: false },
+    layout: defaultLayout('3x2'),
+  };
+  const extra = { id: 'e1', text: 'Hi', box: { x: 20, y: 150, w: 500, h: 60 }, rotation: 0 };
+
+  const left = await renderPrintBitmap({ ...base, extras: [{ ...extra, align: 'L' }] });
+  assert.ok(blackIn(left, 20, 80, 150, 210), 'left-aligned text starts at the left edge');
+  assert.ok(!blackIn(left, 300, 520, 150, 210), 'nothing in the right half');
+
+  const centred = await renderPrintBitmap({ ...base, extras: [extra] });
+  assert.ok(!blackIn(centred, 20, 80, 150, 210), 'centred text leaves the left edge blank');
+  assert.ok(blackIn(centred, 200, 340, 150, 210), 'centred text sits in the middle');
+});

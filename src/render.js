@@ -86,16 +86,21 @@ function drawName(ctx, text, box) {
 }
 
 // Description and plain extra fields: the biggest text that fits the box
-// once wrapped, centred both ways, so a field fills the box it was given.
-function drawWrappedText(ctx, text, box) {
+// once wrapped. Centred both ways by default; 'L'/'R' hug that edge and the
+// top of the box, which reads like a paragraph (used for ingredients).
+function drawWrappedText(ctx, text, box, { align = 'C' } = {}) {
   if (!text) return;
+  const horizontal = align === 'L' || align === 'R' ? align : 'C';
   drawRotated(ctx, box, (b) => {
     const paint = (lines, size, lineHeight) => {
       ctx.font = `${size}px ${FONT}`;
-      ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const top = b.y + (b.h - lines.length * lineHeight) / 2;
-      lines.forEach((line, i) => ctx.fillText(line, b.x + b.w / 2, top + i * lineHeight + lineHeight / 2));
+      let x = b.x + b.w / 2;
+      ctx.textAlign = 'center';
+      if (horizontal === 'L') { ctx.textAlign = 'left'; x = b.x; }
+      if (horizontal === 'R') { ctx.textAlign = 'right'; x = b.x + b.w; }
+      const top = horizontal === 'C' ? b.y + (b.h - lines.length * lineHeight) / 2 : b.y;
+      lines.forEach((line, i) => ctx.fillText(line, x, top + i * lineHeight + lineHeight / 2));
     };
     for (let size = Math.min(Math.floor(b.h / 1.15), 400); size >= 12; size -= 2) {
       ctx.font = `${size}px ${FONT}`;
@@ -148,7 +153,7 @@ async function renderCanvas(label, { includeBarcode }) {
     const box = { ...extra.box, rotation: extra.rotation };
     if (extra.kind === 'image') await drawImageExtra(ctx, extra);
     else if (extra.fit) drawFitted(ctx, extra.text, box, { bold: extra.bold, align: extra.align, stretch: extra.stretch });
-    else drawWrappedText(ctx, extra.text, box);
+    else drawWrappedText(ctx, extra.text, box, { align: extra.align });
   }
   if (includeBarcode) drawBarcode(ctx, label.fields.barcode, label.layout.barcode);
   return canvas;
