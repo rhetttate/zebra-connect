@@ -1537,3 +1537,210 @@ git commit -m "docs: describe the AI label maker
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
+
+---
+
+### Task 11: Uniform text size across the extras band
+
+Added after Task 7's live runs: the renderer sizes each fitted extra to its own box, so a short "Lot 42" prints huge next to a tiny allergen line. Real labels keep small print uniform. The layout engine now computes one text-size cap for the whole band, and on 5x3 an extra longer than 24 characters takes a full-width row instead of a half column. Amends the spec's "single left-aligned line sized to its box".
+
+**Files:**
+- Modify: `src/render.js` (the `fit` branch of the extras loop in `renderCanvas`)
+- Modify: `src/app.js` (`normalizeDraft` extras map, next to the `stretch` handling)
+- Modify: `src/ai-layout.js` (`place`)
+- Test: `test/render.test.js`, `test/app.test.js`, `test/ai-layout.test.js`
+
+**Interfaces:**
+- Produces: extras may carry `textSize` (integer px, 8..400), a cap on the fitted font size. `normalizeDraft` keeps it in that range and drops anything else. `layoutDraft` sets the same `textSize` on every band extra (never on the ingredients extra).
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `test/render.test.js`:
+
+```js
+function blackRowCount(bmp, x0, x1, y0, y1) {
+  let rows = 0;
+  for (let y = y0; y < y1; y++) {
+    if (blackIn(bmp, x0, x1, y, y + 1)) rows++;
+  }
+  return rows;
+}
+
+test('fitted extras honour textSize as a cap on the font size', async () => {
+  const base = {
+    size: '3x2',
+    fields: { name: '', description: '', barcode: '' },
+    options: { showDescription: false },
+    layout: defaultLayout('3x2'),
+  };
+  const extra = { id: 'e1', text: 'Hi', box: { x: 20, y: 150, w: 500, h: 60 }, rotation: 0, fit: true };
+  const capped = await renderPrintBitmap({ ...base, extras: [{ ...extra, textSize: 20 }] });
+  const free = await renderPrintBitmap({ ...base, extras: [extra] });
+  assert.ok(blackRowCount(capped, 20, 520, 150, 210) < 25, 'capped text is about 20px tall');
+  assert.ok(blackRowCount(free, 20, 520, 150, 210) > 30, 'uncapped text fills the 60px box');
+});
+```
+
+Append to `test/app.test.js`:
+
+```js
+test('labels keep a sane textSize on extras and drop nonsense', async () => {
+  const { base, close } = await startApp();
+  const mk = (textSize) => ({ id: String(textSize), text: 'x', box: { x: 0, y: 0, w: 100, h: 40 }, rotation: 0, textSize });
+  const created = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x5', fields: { name: 'Flour' }, extras: [mk(30), mk('abc'), mk(1000), mk(27.6)] }),
+  })).json();
+  assert.equal(created.extras[0].textSize, 30);
+  assert.equal('textSize' in created.extras[1], false);
+  assert.equal('textSize' in created.extras[2], false);
+  assert.equal(created.extras[3].textSize, 28);
+  close();
+});
+```
+
+Append to `test/ai-layout.test.js`:
+
+```js
+test('band extras share one text size cap, set by the longest line', () => {
+  const draft = layoutDraft({ size: '3x5', content: content({ extras: [
+    { role: 'lot', text: 'Lot 42' },
+    { role: 'best_by', text: 'Best by Oct 15, 2026' },
+  ] }) });
+  const [lot, best] = draft.extras;
+  assert.equal(lot.textSize, best.textSize);
+  // Half column is 300 wide; 20 chars at 0.55 em each → floor(300 / 11) = 27.
+  assert.equal(best.textSize, 27);
+  assert.equal(lot.box.w, 300);
+  assert.equal(best.box.w, 300);
+});
+
+test('a long extra takes a full-width row on 5x3', () => {
+  const draft = layoutDraft({ size: '3x5', content: content({ extras: [
+    { role: 'lot', text: 'Lot 42' },
+    { role: 'best_by', text: 'Best by Oct 15, 2026' },
+    { role: 'allergens', text: 'Contains: soy. May contain: milk, tree nuts' },
+    { role: 'net', text: 'Net wt 3 oz (85 g)' },
+  ] }) });
+  const [lot, best, allergens, net] = draft.extras;
+  assert.equal(lot.box.y, best.box.y, 'two short extras share a row');
+  assert.equal(allergens.box.w, 610, 'the long line spans the body');
+  assert.ok(allergens.box.y > lot.box.y);
+  assert.ok(net.box.y > allergens.box.y, 'the next short extra starts a fresh row');
+  assert.equal(net.box.x, 20);
+  const sizes = new Set(draft.extras.map((e) => e.textSize));
+  assert.equal(sizes.size, 1, 'one size across the band');
+  assertClean(draft);
+});
+
+test('small sizes cap band text too; ingredients never get a cap', () => {
+  const small = layoutDraft({ size: '3x2', content: content({ extras: [{ role: 'lot', text: 'Lot 9' }] }) });
+  // Row height 50 → cap is 40; "Lot 9" would fit far larger.
+  assert.equal(small.extras[0].textSize, 40);
+  const big = layoutDraft({ size: '3x5', content: content({ ingredients: 'Almonds.', extras: [{ role: 'lot', text: 'Lot 9' }] }) });
+  const ing = big.extras.find((e) => e.role === 'ingredients');
+  assert.equal('textSize' in ing, false);
+});
+```
+
+- [ ] **Step 2: Run to verify they fail**
+
+```bash
+node --test test/render.test.js test/app.test.js test/ai-layout.test.js
+```
+
+Expected: the new tests FAIL (no `textSize` anywhere yet; the long allergen line lands in a half column).
+
+- [ ] **Step 3: Renderer and normalizer**
+
+In `src/render.js`, change the `fit` branch of the extras loop in `renderCanvas` to:
+
+```js
+    else if (extra.fit) drawFitted(ctx, extra.text, box, { bold: extra.bold, align: extra.align, stretch: extra.stretch, maxSize: extra.textSize ?? 400 });
+```
+
+In `src/app.js`, in the extras map of `normalizeDraft`, after the `stretch` lines add:
+
+```js
+        const textSize = Number(extra.textSize);
+        if (Number.isFinite(textSize) && textSize >= 8 && textSize <= 400) out.textSize = Math.round(textSize);
+```
+
+- [ ] **Step 4: Layout engine**
+
+In `src/ai-layout.js`, add below `const box = ...`:
+
+```js
+// Rough Arial glyph width as a fraction of the font size; the renderer still
+// shrinks text that measures wider, so this only has to be close.
+const CHAR_W = 0.55;
+// Band text never grows past this share of its row, so short values like
+// "Lot 42" stay in proportion with dates and allergen lines.
+const SIZE_CAP = 0.8;
+// On the 5x3, an extra longer than this takes a full-width row.
+const WIDE_CHARS = 24;
+
+function estimateSize(text, width, rowH) {
+  return Math.max(12, Math.min(Math.round(rowH * SIZE_CAP), Math.floor(width / (CHAR_W * text.length))));
+}
+```
+
+Replace the body of `place(withDescLine)` from `const colW = ...` through the `return` with:
+
+```js
+    const colW = Math.floor((bodyW - (P.cols - 1) * P.gap) / P.cols);
+    const placed = [];
+    let col = 0;
+    let row = 0;
+    for (const e of extras) {
+      const wide = P.cols > 1 && e.text.length > WIDE_CHARS;
+      if (wide && col > 0) { col = 0; row++; }
+      const w = wide ? bodyW : colW;
+      placed.push({
+        id: crypto.randomUUID(),
+        role: e.role,
+        text: e.text,
+        box: box(P.margin + col * (colW + P.gap), y + row * (P.rowH + P.gap), w, P.rowH),
+        rotation: 0,
+        fit: true,
+        align: 'L',
+      });
+      if (wide) { col = 0; row++; }
+      else { col++; if (col === P.cols) { col = 0; row++; } }
+    }
+    const rows = row + (col > 0 ? 1 : 0);
+    if (placed.length) {
+      const textSize = Math.min(...placed.map((p) => estimateSize(p.text, p.box.w, P.rowH)));
+      for (const p of placed) p.textSize = textSize;
+      y += rows * (P.rowH + P.gap);
+    }
+    return { layout, placed, bodyY: y, bodyH: bodyBottom - y };
+```
+
+The small-size capacity check earlier in `layoutDraft` (`maxRows * P.cols`) still holds because the small sizes have one column and never promote.
+
+- [ ] **Step 5: Run to verify they pass**
+
+```bash
+npm test
+```
+
+Expected: all pass, including the earlier layout tests (the six-extra fixtures are all 24 characters or shorter, so their row counts are unchanged).
+
+- [ ] **Step 6: Look at the result**
+
+```bash
+node tools/ai-label-try.mjs 3x5 --photo ai-label-out/sample.jpg
+```
+
+Open the newest PNG in `ai-label-out/`: the band should read at one size, with the allergen line on its own full-width row.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/render.js src/app.js src/ai-layout.js test/render.test.js test/app.test.js test/ai-layout.test.js
+git commit -m "feat: uniform text size across the extras band, full rows for long lines
+
+Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+```

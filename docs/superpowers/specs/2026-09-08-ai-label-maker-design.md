@@ -104,7 +104,10 @@ Shared rules:
   net, note`, each in a box of fixed row height (70 dots on 5x3, 50 on 3x2,
   36 on 2x1.25), two per row on 5x3, one per row on the small sizes. Each
   extra is stored as `{ id, role, text, box, rotation: 0, fit: true, bold: false, align: 'L' }`
-  so it renders as a single left-aligned line sized to its box.
+  so it renders as a single left-aligned line. All band extras share one
+  `textSize` cap (computed from the longest line, at most 80% of the row
+  height) so short values stay in proportion; on 5x3 an extra longer than
+  24 characters takes a full-width row. (Amended 2026-09-08 after live runs.)
 - Barcode keeps the default layout's box for that size (right column on 5x3,
   bottom on the small sizes). Nothing else may overlap it.
 - Body: the space left between the extras band and the bottom margin (5x3:
