@@ -315,6 +315,33 @@ export function openFilePrint(label, onDeleted) {
   };
 }
 
+// Phones take 12-megapixel photos; the model only needs enough to read a
+// label. Shrink to 1600 px on the long edge and re-encode as JPEG so the
+// upload over WiFi and the model call both stay small.
+async function shrinkPhoto(file) {
+  const MAX = 1600;
+  let source;
+  if (typeof createImageBitmap === 'function') {
+    source = await createImageBitmap(file);
+  } else {
+    source = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('unsupported image'));
+      img.src = URL.createObjectURL(file);
+    });
+  }
+  const w = source.width ?? source.naturalWidth;
+  const h = source.height ?? source.naturalHeight;
+  const scale = Math.min(1, MAX / Math.max(w, h));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(w * scale);
+  canvas.height = Math.round(h * scale);
+  canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  return { mediaType: 'image/jpeg', data: dataUrl.slice(dataUrl.indexOf(',') + 1) };
+}
+
 function renderNew() {
   setTitle('New label');
   view.innerHTML = `
@@ -324,23 +351,32 @@ function renderNew() {
       <button class="quiet" data-size="3x2">3 × 2<span class="in">inches</span></button>
       <button class="quiet" data-size="2x1.25">2 × 1.25<span class="in">inches</span></button>
     </div>
-    <p class="eyebrow">Start from a photo</p>
-    <div class="row">
-      <button id="from-photo" class="quiet">${icon('camera')} Read a photo</button>
-      <select id="photo-size" class="tight" style="width:110px">
-        <option value="3x5" selected>5 × 3</option>
-        <option value="3x2">3 × 2</option>
-        <option value="2x1.25">2 × 1.25</option>
-      </select>
+    <p class="eyebrow">Make it for me</p>
+    <div class="maker">
+      <textarea id="maker-text" rows="3" placeholder="Almond flour, lot 42, best by Oct 15, contains tree nuts…"></textarea>
+      <div class="maker-photo" id="maker-photo" hidden>
+        <img id="maker-thumb" alt="chosen photo">
+        <span class="hint" style="flex:1;margin:0">Photo attached</span>
+        <button id="maker-remove" class="quiet remove" title="Remove photo">${icon('trash')}</button>
+      </div>
+      <div class="row">
+        <button id="maker-camera" class="quiet">${icon('camera')} Add a photo</button>
+        <select id="maker-size" class="tight" style="width:110px">
+          <option value="3x5">5 × 3</option>
+          <option value="3x2">3 × 2</option>
+          <option value="2x1.25">2 × 1.25</option>
+        </select>
+        <button id="maker-go" class="accent" disabled>Make label</button>
+      </div>
+      <p class="hint">Type what should be on the label, snap the product or its ingredient panel, or both. Ingredients only fit on 5 × 3 labels.</p>
     </div>
-    <p class="hint">Snap the product or its packaging. The name and description fill in for you.</p>
     <p class="eyebrow">Printer file</p>
     <div class="row">
       <button id="add-prn" class="quiet">${icon('file')} Add a .prn to the library</button>
       <button id="print-prn" class="quiet">${icon('file')} Print a .prn once</button>
     </div>
     <p class="hint">Files in the library print from any phone; "print once" sends a file without keeping it.</p>
-    <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
+    <input id="maker-input" type="file" accept="image/*" capture="environment" hidden>
     <input id="prn-input" type="file" accept=".prn" hidden>
     <input id="add-prn-input" type="file" accept=".prn" multiple hidden>`;
 
@@ -368,19 +404,53 @@ function renderNew() {
     btn.onclick = () => renderEditor(view, { size: btn.dataset.size });
   }
 
-  const photoInput = view.querySelector('#photo-input');
-  view.querySelector('#from-photo').onclick = () => { photoInput.value = ''; photoInput.click(); };
-  photoInput.onchange = async () => {
-    const file = photoInput.files[0];
+  const makerText = view.querySelector('#maker-text');
+  const makerSize = view.querySelector('#maker-size');
+  const makerGo = view.querySelector('#maker-go');
+  const makerInput = view.querySelector('#maker-input');
+  const makerPhoto = view.querySelector('#maker-photo');
+  const makerThumb = view.querySelector('#maker-thumb');
+  let photo = null; // { mediaType, data } once shrunk
+
+  api.getSettings().then((s) => { if (s.loadedSize) makerSize.value = s.loadedSize; }).catch(() => {});
+
+  const syncGo = () => { makerGo.disabled = !(makerText.value.trim() || photo); };
+  makerText.oninput = syncGo;
+
+  view.querySelector('#maker-camera').onclick = () => { makerInput.value = ''; makerInput.click(); };
+  makerInput.onchange = async () => {
+    const file = makerInput.files[0];
     if (!file) return;
-    const size = view.querySelector('#photo-size').value;
-    showToast('Reading photo…');
     try {
-      const fields = await api.extract(file);
-      renderEditor(view, { size, fields });
+      photo = await shrinkPhoto(file);
+      makerThumb.src = `data:${photo.mediaType};base64,${photo.data}`;
+      makerPhoto.hidden = false;
     } catch (err) {
-      showToast(`Photo reading failed: ${err.message}`, true);
-      renderEditor(view, { size });
+      showToast(`Couldn't read that photo: ${err.message}`, true);
+    }
+    syncGo();
+  };
+  view.querySelector('#maker-remove').onclick = () => {
+    photo = null;
+    makerThumb.src = '';
+    makerPhoto.hidden = true;
+    syncGo();
+  };
+
+  makerGo.onclick = async () => {
+    makerGo.disabled = true;
+    makerGo.textContent = 'Making…';
+    showToast('Making your label…');
+    try {
+      const { warnings = [], ...draft } = await api.makeLabel({
+        size: makerSize.value, text: makerText.value.trim(), image: photo,
+      });
+      renderEditor(view, draft);
+      for (const w of warnings) showToast(w, true);
+    } catch (err) {
+      showToast(`Couldn't make the label: ${err.message}`, true);
+      makerGo.textContent = 'Make label';
+      syncGo();
     }
   };
 

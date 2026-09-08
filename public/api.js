@@ -32,9 +32,7 @@ export const api = {
   saveFileZpl: async (id, zpl, name) => (await call(`/api/labels/${id}/zpl`, json('PUT', { zpl, name }))).json(),
   previewZplBlob: async (zpl) => (await call('/api/preview-zpl', json('POST', { zpl }))).blob(),
   convertFile: async (id) => (await call(`/api/labels/${id}/convert`, json('POST', { remove: true }))).json(),
-  extract: async (file) => (await call('/api/extract', {
-    method: 'POST', headers: { 'content-type': file.type }, body: file,
-  })).json(),
+  makeLabel: async (body) => (await call('/api/ai-label', json('POST', body))).json(),
   getSettings: async () => (await call('/api/settings')).json(),
   putSettings: async (patch) => (await call('/api/settings', json('PUT', patch))).json(),
   discover: async () => (await call('/api/settings/discover', { method: 'POST' })).json(),
