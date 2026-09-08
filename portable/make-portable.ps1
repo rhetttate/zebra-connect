@@ -15,15 +15,22 @@ New-Item -ItemType Directory -Force "$dest\app" | Out-Null
 # The Node runtime itself (a single exe is all the server needs).
 Copy-Item (Get-Command node).Source "$dest\node.exe" -Force
 
-# The app: code, UI, and installed dependencies.
-foreach ($item in 'src', 'public', 'package.json') {
-  Copy-Item "$src\$item" "$dest\app\$item" -Recurse -Force
+# The app: code, UI, and installed dependencies. Mirroring (rather than
+# Copy-Item -Recurse) keeps re-runs from nesting folders and drops files
+# that no longer exist in the repo.
+foreach ($item in 'src', 'public', 'node_modules') {
+  robocopy "$src\$item" "$dest\app\$item" /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+  if ($LASTEXITCODE -ge 8) { throw "$item copy failed (robocopy code $LASTEXITCODE)" }
 }
-robocopy "$src\node_modules" "$dest\app\node_modules" /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
-if ($LASTEXITCODE -ge 8) { throw "node_modules copy failed (robocopy code $LASTEXITCODE)" }
+Copy-Item "$src\package.json" "$dest\app\package.json" -Force
 
-# Current labels and settings travel with the stick.
-if (Test-Path "$src\data") { Copy-Item "$src\data" "$dest\data" -Recurse -Force }
+# Current labels and settings travel with the stick. Copy the files, not the
+# folder, so an existing data folder on the stick is updated rather than
+# getting a nested copy.
+if (Test-Path "$src\data") {
+  New-Item -ItemType Directory -Force "$dest\data" | Out-Null
+  Copy-Item "$src\data\*" "$dest\data\" -Recurse -Force
+}
 
 Copy-Item "$PSScriptRoot\START-LABELS.bat" "$dest\START-LABELS.bat" -Force
 

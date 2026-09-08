@@ -1,2 +1,6 @@
 node_modules/
 data/
+
+# BLE console build output and scratch command files
+tools/ble-console/*.dll
+tools/ble-console/cmds-*.txt
