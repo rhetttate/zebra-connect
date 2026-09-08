@@ -123,3 +123,41 @@ test('houseExamples picks recent app labels with a name and description', () => 
   ]);
   assert.deepEqual(houseExamples(labels, 1), [{ name: 'Olive Oil', description: 'Extra virgin' }]);
 });
+
+test('parseContent truncates over-long fields', () => {
+  const out = parseContent({
+    name: 'N'.repeat(200),
+    description: 'D'.repeat(500),
+    ingredients: 'I'.repeat(900),
+    warning: 'w',
+    extras: [{ role: 'note', text: 'x'.repeat(300) }],
+  });
+  assert.equal(out.name.length, 60);
+  assert.equal(out.description.length, 160);
+  assert.equal(out.ingredients.length, 600);
+  assert.equal(out.extras[0].text.length, 120);
+});
+
+test('parseContent trims after truncating so no field ends mid-space', () => {
+  const out = parseContent({
+    name: `${'N'.repeat(58)}   tail`,
+    description: `${'D'.repeat(158)}   tail`,
+    ingredients: `${'I'.repeat(598)}   tail`,
+    extras: [{ role: 'note', text: `${'x'.repeat(118)}   tail` }],
+  });
+  assert.equal(out.name, 'N'.repeat(58));
+  assert.equal(out.description, 'D'.repeat(158));
+  assert.equal(out.ingredients, 'I'.repeat(598));
+  assert.equal(out.extras[0].text, 'x'.repeat(118));
+});
+
+test('makeLabelContent parses a clean JSON reply without the regex fallback', async () => {
+  // A brace inside a string value would break a naive greedy regex match.
+  const reply = JSON.stringify({
+    name: 'Almond Flour', description: 'Ground {finely}', ingredients: 'Blanched almonds.',
+    extras: [{ role: 'lot', text: 'Lot 42' }], warning: '',
+  });
+  const client = stubClient({ stop_reason: 'end_turn', content: [{ type: 'text', text: reply }] });
+  const out = await makeLabelContent({ size: '3x5', text: 'x', image: null }, client, { today });
+  assert.equal(out.description, 'Ground {finely}');
+});

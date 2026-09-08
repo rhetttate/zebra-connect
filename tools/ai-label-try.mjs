@@ -41,7 +41,7 @@ const started = Date.now();
 const content = await makeLabelContent({ size, text, image }, makeClient(config.get().apiKey), { examples });
 const draft = layoutDraft({ size, content });
 draft.fields.barcode = generateUpcA(() => false);
-const png = await renderPreview({ ...draft, options: draft.options, layout: draft.layout });
+const png = await renderPreview(draft);
 
 fs.mkdirSync(out, { recursive: true });
 const n = fs.readdirSync(out).filter((f) => f.endsWith('.png')).length + 1;

@@ -219,6 +219,10 @@ test('ai-label returns a normalized draft with a fresh barcode, roles and warnin
   assert.equal(draft.options.showDescription, true);
   assert.equal(draft.layout.name.rotation, 0);
   assert.deepEqual(draft.extras.map((e) => e.role), ['lot', 'ingredients']);
+  const lot = draft.extras.find((e) => e.role === 'lot');
+  assert.equal(lot.fit, true, 'band extras survive normalization as fitted lines');
+  assert.equal(lot.align, 'L');
+  assert.ok(Number.isInteger(lot.textSize), 'the band text size cap survives normalization');
   assert.deepEqual(draft.warnings, ['Photo was blurry']);
   assert.deepEqual(seen[0], { size: '3x5', text: 'almond flour', image: { mediaType: 'image/jpeg', data: 'AAAA' } });
   close();

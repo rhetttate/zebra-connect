@@ -81,16 +81,20 @@ export function buildPrompt({ size, text = '', image = null, today, examples = [
 
 const NOTE_LIMIT = 2;
 
+// The model is told to be terse, but nothing stops it writing an essay; cap
+// every field at a length the label engine can still lay out.
+const clip = (value, limit) => String(value ?? '').slice(0, limit).trim();
+
 export function parseContent(raw) {
   if (!raw || typeof raw !== 'object') throw new Error('could not parse label content');
-  const name = String(raw.name ?? '').trim();
+  const name = clip(raw.name, 60);
   if (!name) throw new Error('could not parse label content');
   const seen = {};
   const extras = [];
   for (const item of Array.isArray(raw.extras) ? raw.extras : []) {
     if (!item || typeof item !== 'object') continue;
     const role = item.role;
-    const text = String(item.text ?? '').trim();
+    const text = clip(item.text, 120);
     if (!ROLE_ORDER.includes(role) || !text) continue;
     seen[role] = (seen[role] ?? 0) + 1;
     if (seen[role] > (role === 'note' ? NOTE_LIMIT : 1)) continue;
@@ -98,8 +102,8 @@ export function parseContent(raw) {
   }
   return {
     name,
-    description: String(raw.description ?? '').trim(),
-    ingredients: String(raw.ingredients ?? '').trim(),
+    description: clip(raw.description, 160),
+    ingredients: clip(raw.ingredients, 600),
     extras,
     warning: String(raw.warning ?? '').trim(),
   };
@@ -125,13 +129,19 @@ export async function makeLabelContent({ size, text, image }, client, { today = 
     .filter((b) => b.type === 'text')
     .map((b) => b.text)
     .join('');
-  const match = textOut.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('could not parse label content');
+  // Structured output normally gives us bare JSON; the regex is only a net
+  // for a reply wrapped in prose or a code fence.
   let parsed;
   try {
-    parsed = JSON.parse(match[0]);
+    parsed = JSON.parse(textOut);
   } catch {
-    throw new Error('could not parse label content');
+    const match = textOut.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error('could not parse label content');
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      throw new Error('could not parse label content');
+    }
   }
   return parseContent(parsed);
 }
