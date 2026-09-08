@@ -166,3 +166,21 @@ test('fitted extras honour textSize as a cap on the font size', async () => {
   assert.ok(blackRowCount(capped, 20, 520, 150, 210) < 25, 'capped text is about 20px tall');
   assert.ok(blackRowCount(free, 20, 520, 150, 210) > 30, 'uncapped text fills the 60px box');
 });
+
+test('wrapped extras honour textSize as a cap on the font size', async () => {
+  const base = {
+    size: '3x2',
+    fields: { name: '', description: '', barcode: '' },
+    options: { showDescription: false },
+    layout: defaultLayout('3x2'),
+  };
+  // No `fit`, so this goes through the wrapping path.
+  const extra = { id: 'e1', text: 'Hi', box: { x: 20, y: 150, w: 500, h: 120 }, rotation: 0, align: 'L' };
+  const capped = await renderPrintBitmap({ ...base, extras: [{ ...extra, textSize: 20 }] });
+  const free = await renderPrintBitmap({ ...base, extras: [extra] });
+  const cappedRows = blackRowCount(capped, 20, 520, 150, 270);
+  const freeRows = blackRowCount(free, 20, 520, 150, 270);
+  assert.ok(cappedRows > 0, 'the capped text still paints');
+  assert.ok(cappedRows < freeRows, `capped ${cappedRows} rows should be fewer than uncapped ${freeRows}`);
+  assert.ok(cappedRows < 25, 'capped text is about 20px tall');
+});

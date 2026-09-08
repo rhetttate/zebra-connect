@@ -58,54 +58,62 @@ export function layoutDraft({ size, content }) {
   const description = String(content.description ?? '').trim();
   const ingredients = size === '3x5' ? String(content.ingredients ?? '').trim() : '';
   const bandTop = name.y + name.h + P.gap;
-
-  // Small labels: keep only as many extras as fit above the barcode.
-  let extras = orderedExtras(content.extras);
-  if (size !== '3x5') {
-    const maxRows = Math.max(0, Math.floor((bodyBottom - bandTop + P.gap) / (P.rowH + P.gap)));
-    extras = extras.slice(0, maxRows * P.cols);
-  }
+  const colW = Math.floor((bodyW - (P.cols - 1) * P.gap) / P.cols);
 
   // Stack: [one-line description] → extras band → body. Returns what is left.
-  function place(withDescLine) {
+  function place(list, withDescLine) {
     let y = bandTop;
     const layout = { name, barcode };
     if (withDescLine) {
       layout.description = box(P.margin, y, bodyW, P.descLineH);
       y += P.descLineH + P.gap;
     }
-    const colW = Math.floor((bodyW - (P.cols - 1) * P.gap) / P.cols);
+
+    // One size for the whole band, read off the short lines only: a long line
+    // wraps at that size rather than dragging every other value down with it.
+    const short = list.filter((e) => e.text.length <= WIDE_CHARS);
+    const textSize = short.length
+      ? Math.min(...short.map((e) => estimateSize(e.text, colW, P.rowH)))
+      : Math.round(P.rowH * SIZE_CAP);
+    // Rows are only as tall as their text, and a long line gets two of them.
+    const shortH = Math.min(P.rowH, Math.round(textSize * 1.5));
+    const wrapH = Math.round(textSize * 1.15 * 2 + textSize * 0.4);
+
     const placed = [];
+    let rowY = y;
     let col = 0;
-    let row = 0;
-    for (const e of extras) {
-      const wide = P.cols > 1 && e.text.length > WIDE_CHARS;
-      if (wide && col > 0) { col = 0; row++; }
-      const w = wide ? bodyW : colW;
-      placed.push({
-        id: crypto.randomUUID(),
-        role: e.role,
-        text: e.text,
-        box: box(P.margin + col * (colW + P.gap), y + row * (P.rowH + P.gap), w, P.rowH),
-        rotation: 0,
-        fit: true,
-        align: 'L',
-      });
-      if (wide) { col = 0; row++; }
-      else { col++; if (col === P.cols) { col = 0; row++; } }
+    for (const e of list) {
+      const common = { id: crypto.randomUUID(), role: e.role, text: e.text, rotation: 0, align: 'L', textSize };
+      if (e.text.length > WIDE_CHARS) {
+        if (col > 0) { rowY += shortH + P.gap; col = 0; }
+        placed.push({ ...common, box: box(P.margin, rowY, bodyW, wrapH) });
+        rowY += wrapH + P.gap;
+      } else {
+        placed.push({ ...common, box: box(P.margin + col * (colW + P.gap), rowY, colW, shortH), fit: true });
+        col += 1;
+        if (col === P.cols) { rowY += shortH + P.gap; col = 0; }
+      }
     }
-    const rows = row + (col > 0 ? 1 : 0);
-    if (placed.length) {
-      const textSize = Math.min(...placed.map((p) => estimateSize(p.text, p.box.w, P.rowH)));
-      for (const p of placed) p.textSize = textSize;
-      y += rows * (P.rowH + P.gap);
-    }
-    return { layout, placed, bodyY: y, bodyH: bodyBottom - y };
+    if (col > 0) rowY += shortH + P.gap;
+    return { layout, placed, textSize, bodyY: rowY, bodyH: bodyBottom - rowY };
   }
 
-  let result = place(Boolean(ingredients && description));
-  if (ingredients && result.layout.description && result.bodyH < P.minBody) result = place(false);
-  const { layout, placed, bodyY, bodyH } = result;
+  let extras = orderedExtras(content.extras);
+  let withDescLine = Boolean(ingredients && description);
+  let result = place(extras, withDescLine);
+  // Ingredients need a body to live in; give up the description line first.
+  if (ingredients && result.layout.description && result.bodyH < P.minBody) {
+    withDescLine = false;
+    result = place(extras, false);
+  }
+  // Then drop trailing extras — role order puts notes last — until the band
+  // stops running past the body. Every size, not just the small ones.
+  const needBody = ingredients ? P.minBody : 0;
+  while (result.bodyH < needBody && extras.length) {
+    extras = extras.slice(0, -1);
+    result = place(extras, withDescLine);
+  }
+  const { layout, placed, textSize, bodyY, bodyH } = result;
 
   let showDescription = Boolean(layout.description);
   if (ingredients && bodyH >= P.minBody) {
@@ -116,6 +124,8 @@ export function layoutDraft({ size, content }) {
       box: box(P.margin, bodyY, bodyW, bodyH),
       rotation: 0,
       align: 'L',
+      // Big enough to read, but never a headline in a tall empty body.
+      textSize: Math.max(textSize, 28),
     });
   }
   if (!layout.description) {
