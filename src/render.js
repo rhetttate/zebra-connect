@@ -85,27 +85,33 @@ function drawName(ctx, text, box) {
   drawFitted(ctx, text, box, { bold: true, align: 'C', stretch: box.stretch ?? 1, maxSize: 200 });
 }
 
+// Description and plain extra fields: the biggest text that fits the box
+// once wrapped, centred both ways, so a field fills the box it was given.
 function drawWrappedText(ctx, text, box) {
   if (!text) return;
   drawRotated(ctx, box, (b) => {
-    for (let size = 40; size >= 12; size -= 2) {
+    const paint = (lines, size, lineHeight) => {
+      ctx.font = `${size}px ${FONT}`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const top = b.y + (b.h - lines.length * lineHeight) / 2;
+      lines.forEach((line, i) => ctx.fillText(line, b.x + b.w / 2, top + i * lineHeight + lineHeight / 2));
+    };
+    for (let size = Math.min(Math.floor(b.h / 1.15), 400); size >= 12; size -= 2) {
       ctx.font = `${size}px ${FONT}`;
       const lines = wrapLines(ctx, text, b.w);
-      const lineHeight = Math.round(size * 1.25);
-      if (lines.length * lineHeight <= b.h) {
-        ctx.textAlign = 'left';
-        ctx.textBaseline = 'top';
-        lines.forEach((line, i) => ctx.fillText(line, b.x, b.y + i * lineHeight));
+      const lineHeight = Math.round(size * 1.15);
+      const widest = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      if (lines.length * lineHeight <= b.h && widest <= b.w) {
+        paint(lines, size, lineHeight);
         return;
       }
     }
-    // Even at 12px it overflows: draw clipped at 12px.
+    // Even at 12px it overflows: draw what fits, clipped to the box height.
     ctx.font = `12px ${FONT}`;
     const lines = wrapLines(ctx, text, b.w);
-    const maxLines = Math.max(1, Math.floor(b.h / 15));
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
-    lines.slice(0, maxLines).forEach((line, i) => ctx.fillText(line, b.x, b.y + i * 15));
+    const maxLines = Math.max(1, Math.floor(b.h / 14));
+    paint(lines.slice(0, maxLines), 12, 14);
   });
 }
 

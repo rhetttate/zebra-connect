@@ -40,7 +40,15 @@ function guessSize(label, zpl, fields) {
     const upright = fields.some((f) => f.kind === 'text' && f.orient === 'N');
     return { size: upright ? '3x2' : '3x5', warning: null };
   }
-  return { size: '2x1.25', warning: 'file declares no size — assumed 2 × 1.25' };
+  // Nothing declared: the smallest label all the field positions fit on.
+  let maxX = 0;
+  let maxY = 0;
+  for (const m of zpl.matchAll(/\^F[TO](\d+),(\d+)/g)) {
+    maxX = Math.max(maxX, Number(m[1]));
+    maxY = Math.max(maxY, Number(m[2]));
+  }
+  const size = (maxX <= 406 && maxY <= 253) ? '2x1.25' : (maxX <= 576 && maxY <= 406) ? '3x2' : '3x5';
+  return { size, warning: `file declares no size — assumed ${size} from where its fields sit` };
 }
 
 // In the app's model a box is always the area the element covers on the
@@ -94,18 +102,25 @@ function textExtra(f, size, text) {
   };
 }
 
-// The ^BY that precedes a barcode carries its bar height.
-function barHeightBefore(zpl, field) {
-  const before = zpl.slice(0, zpl.indexOf(`^FD${field.text}`));
-  const matches = [...before.matchAll(/\^BY\d+,[\d.]*,(\d+)/g)];
-  return matches.length ? Number(matches[matches.length - 1][1]) : 100;
+// The ^BY before a barcode sets its module width and default bar height; a
+// height given on the ^BU itself wins. A UPC-A is 95 modules wide, which is
+// exactly what barcodeGeometry() derives from a box of that width.
+function barcodeParams(zpl, field) {
+  const end = zpl.indexOf(`^FD${field.text}`);
+  const before = zpl.slice(0, end);
+  const by = [...before.matchAll(/\^BY(\d+),?[\d.]*,?(\d*)/g)].pop();
+  const module = Math.min(10, Math.max(2, Number(by?.[1]) || 3));
+  const fromBy = Number(by?.[2]) || 100;
+  const fieldStart = before.lastIndexOf('^FT') >= 0 ? Math.max(before.lastIndexOf('^FT'), before.lastIndexOf('^FO')) : 0;
+  const bu = /\^BU[NRIB],(\d+)/.exec(before.slice(fieldStart));
+  return { width: module * 95, barHeight: bu ? Number(bu[1]) : fromBy };
 }
 
 // The rectangle a barcode covers in print space. ^FO is always the top-left
 // corner; ^FT's origin moves with the orientation: bottom-left (N),
 // top-left (R), top-right (I), bottom-right (B).
-function barcodePrintRect(f, barHeight) {
-  const w = 285; // module width 3 × 95 modules, what barcodeGeometry() yields
+function barcodePrintRect(f, { width, barHeight }) {
+  const w = width;
   const h = barHeight + 30; // bars plus the digits underneath
   const sideways = f.orient === 'R' || f.orient === 'B';
   const rw = sideways ? h : w;
@@ -120,7 +135,7 @@ function barcodePrintRect(f, barHeight) {
 }
 
 function barcodeBox(f, size, zpl) {
-  const r = barcodePrintRect(f, barHeightBefore(zpl, f));
+  const r = barcodePrintRect(f, barcodeParams(zpl, f));
   // Design-space footprint: 5x3 files are flipped and un-rotated (see spec).
   const footprint = size === '3x5'
     ? { x: 1015 - r.y - r.h, y: r.x + 1, w: r.h, h: r.w }

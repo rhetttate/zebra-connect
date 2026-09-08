@@ -91,6 +91,41 @@ async function inkRight(png, region) {
   return right;
 }
 
+// Bounding box of ink inside a region, or null.
+async function inkBounds(png, region) {
+  const { loadImage } = await import('@napi-rs/canvas');
+  const img = await loadImage(png);
+  const c = createCanvas(img.width, img.height);
+  const ctx = c.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(region.x, region.y, region.w, region.h).data;
+  let minX = Infinity; let maxX = -1; let minY = Infinity; let maxY = -1;
+  for (let y = 0; y < region.h; y++) {
+    for (let x = 0; x < region.w; x++) {
+      if (d[(y * region.w + x) * 4] < 128) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+    }
+  }
+  return maxX < 0 ? null : { minX, maxX, minY, maxY };
+}
+
+test('plain extras and the description fill their box height and sit centred', async () => {
+  const label = {
+    ...base2x(),
+    fields: { name: '', description: 'Hi', barcode: '' },
+    options: { showDescription: true },
+    layout: { ...base2x().layout, description: { x: 0, y: 130, w: 400, h: 100, rotation: 0 } },
+    extras: [{ id: 'a', text: 'Hi', box: { x: 0, y: 10, w: 400, h: 100 }, rotation: 0 }],
+  };
+  const png = await renderPreview(label);
+  for (const region of [{ x: 0, y: 10, w: 400, h: 100 }, { x: 0, y: 130, w: 400, h: 100 }]) {
+    const b = await inkBounds(png, region);
+    assert.ok(b, 'has ink');
+    assert.ok(b.maxY - b.minY > 55, `fills height: ink ${b.maxY - b.minY}px tall in a 100px box`);
+    const centre = (b.minX + b.maxX) / 2;
+    assert.ok(Math.abs(centre - 200) < 20, `centred: ink centre ${centre}`);
+  }
+});
+
 test('stretch narrows fitted text horizontally without shrinking it', async () => {
   const mk = (stretch) => ({
     ...base2x(),

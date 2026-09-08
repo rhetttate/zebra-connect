@@ -114,8 +114,31 @@ test('boxes are clamped inside the label canvas so the editor never flags them',
   assert.equal(draft.layout.barcode.y, 111);
 });
 
+test('an undeclared size is inferred from how far the fields reach', async () => {
+  // Fields down to y=374 cannot fit 2x1.25 (253 tall) → 3x2.
+  const tall = '^XA^FT20,60^A0N,40,40^FDTide^FS^BY3,2,102^FT170,374^BUN,,Y,N,Y^FD012345678905^FS^XZ';
+  const a = await convertFileLabel(file(tall, null), { generateBarcode: gen });
+  assert.equal(a.draft.size, '3x2');
+  assert.match(a.warnings.join(' '), /size/i);
+  // Fields within 406x253 → 2x1.25.
+  const small = '^XA^FT20,60^A0N,40,40^FDChicken^FS^BY3,2,63^FT89,223^BUN,,Y,N,Y^FD012345678905^FS^XZ';
+  const b = await convertFileLabel(file(small, null), { generateBarcode: gen });
+  assert.equal(b.draft.size, '2x1.25');
+});
+
+test('barcode boxes follow the file\'s module width and bar height', async () => {
+  // ^BY2 → 2 dots/module → 190 wide; height 60 from ^BY.
+  const narrow = '^XA^PW406^LL254^BY2,3,60^FT60,200^BUN,,Y,N,Y^FD012345678905^FS^XZ';
+  const a = await convertFileLabel(file(narrow, '2x1.25'), { generateBarcode: gen });
+  assert.deepEqual(a.draft.layout.barcode, { x: 60, y: 140, w: 190, h: 90, rotation: 0 });
+  // ^BY4 → 380 wide; the ^BU height parameter (80) overrides ^BY's.
+  const wide = '^XA^PW575^LL406^BY4,2,120^FT10,300^BUN,80,Y,N,Y^FD012345678905^FS^XZ';
+  const b = await convertFileLabel(file(wide, '3x2'), { generateBarcode: gen });
+  assert.deepEqual(b.draft.layout.barcode, { x: 10, y: 220, w: 380, h: 110, rotation: 0 });
+});
+
 test('size falls back from ^PW and warns when nothing is declared; extras are capped at 20', async () => {
-  const lines = Array.from({ length: 23 }, (_, i) => `^FT10,${30 + i * 20}^A0N,18,18^FDline ${i}^FS`).join('');
+  const lines = Array.from({ length: 23 }, (_, i) => `^FT10,${30 + i * 9}^A0N,8,8^FDline ${i}^FS`).join('');
   const { draft, warnings } = await convertFileLabel(file(`^XA${lines}^XZ`, null), { generateBarcode: gen });
   assert.equal(draft.size, '2x1.25');
   assert.equal(draft.extras.length, 20);
