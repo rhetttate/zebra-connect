@@ -1,17 +1,49 @@
-import { createCanvas } from '@napi-rs/canvas';
+import { createCanvas, loadImage } from '@napi-rs/canvas';
 import { SIZES, barcodeGeometry } from './layout.js';
 import { encodeUpcAModules, validateUpcA } from './barcode.js';
 
 const FONT = 'Arial';
 
-function fitSingleLine(ctx, text, box) {
-  let size = Math.min(box.h, 200);
+function fitSingleLine(ctx, text, box, { bold = true, maxSize = 200 } = {}) {
+  let size = Math.min(box.h, maxSize);
+  const weight = bold ? 'bold ' : '';
   while (size > 10) {
-    ctx.font = `bold ${size}px ${FONT}`;
+    ctx.font = `${weight}${size}px ${FONT}`;
     if (ctx.measureText(text).width <= box.w) break;
     size -= 2;
   }
   return size;
+}
+
+// A single line sized to its box (like the name), with weight, alignment and
+// a horizontal stretch (below 1 = condensed, as Zebra's built-in font is) —
+// how converted printer-file text keeps its original size and width.
+function drawFitted(ctx, text, box, { bold = false, align = 'L', stretch = 1, maxSize = 400 } = {}) {
+  if (!text) return;
+  const sx = Number.isFinite(stretch) && stretch > 0 ? stretch : 1;
+  drawRotated(ctx, box, (b) => {
+    // Fit by size against the width the stretched text will actually take.
+    const virtual = { ...b, w: b.w / sx };
+    const size = fitSingleLine(ctx, text, virtual, { bold, maxSize });
+    ctx.font = `${bold ? 'bold ' : ''}${size}px ${FONT}`;
+    ctx.textBaseline = 'middle';
+    const y = b.y + b.h / 2;
+    let anchorX = b.x;
+    if (align === 'C') { ctx.textAlign = 'center'; anchorX = b.x + b.w / 2; }
+    else if (align === 'R') { ctx.textAlign = 'right'; anchorX = b.x + b.w; }
+    else ctx.textAlign = 'left';
+    ctx.save();
+    ctx.translate(anchorX, y);
+    ctx.scale(sx, 1);
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  });
+}
+
+async function drawImageExtra(ctx, extra) {
+  let img;
+  try { img = await loadImage(extra.image); } catch { return; }
+  drawRotated(ctx, { ...extra.box, rotation: extra.rotation }, (b) => ctx.drawImage(img, b.x, b.y, b.w, b.h));
 }
 
 function wrapLines(ctx, text, maxWidth) {
@@ -50,14 +82,7 @@ function drawRotated(ctx, box, draw) {
 }
 
 function drawName(ctx, text, box) {
-  if (!text) return;
-  drawRotated(ctx, box, (b) => {
-    const size = fitSingleLine(ctx, text, b);
-    ctx.font = `bold ${size}px ${FONT}`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, b.x + b.w / 2, b.y + b.h / 2);
-  });
+  drawFitted(ctx, text, box, { bold: true, align: 'C', stretch: box.stretch ?? 1, maxSize: 200 });
 }
 
 function drawWrappedText(ctx, text, box) {
@@ -102,7 +127,7 @@ function drawBarcode(ctx, code, box) {
   });
 }
 
-function renderCanvas(label, { includeBarcode }) {
+async function renderCanvas(label, { includeBarcode }) {
   const { width, height } = SIZES[label.size];
   const canvas = createCanvas(width, height);
   const ctx = canvas.getContext('2d');
@@ -114,18 +139,21 @@ function renderCanvas(label, { includeBarcode }) {
     drawWrappedText(ctx, label.fields.description, label.layout.description);
   }
   for (const extra of label.extras ?? []) {
-    drawWrappedText(ctx, extra.text, { ...extra.box, rotation: extra.rotation });
+    const box = { ...extra.box, rotation: extra.rotation };
+    if (extra.kind === 'image') await drawImageExtra(ctx, extra);
+    else if (extra.fit) drawFitted(ctx, extra.text, box, { bold: extra.bold, align: extra.align, stretch: extra.stretch });
+    else drawWrappedText(ctx, extra.text, box);
   }
   if (includeBarcode) drawBarcode(ctx, label.fields.barcode, label.layout.barcode);
   return canvas;
 }
 
 export async function renderPreview(label) {
-  return renderCanvas(label, { includeBarcode: true }).toBuffer('image/png');
+  return (await renderCanvas(label, { includeBarcode: true })).toBuffer('image/png');
 }
 
 export async function renderPrintBitmap(label, { includeBarcode = false } = {}) {
-  const canvas = renderCanvas(label, { includeBarcode });
+  const canvas = await renderCanvas(label, { includeBarcode });
   const { width, height } = canvas;
   const rgba = canvas.getContext('2d').getImageData(0, 0, width, height).data;
   const bytesPerRow = Math.ceil(width / 8);

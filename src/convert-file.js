@@ -1,8 +1,10 @@
 // Turn an imported printer file (ZebraDesigner ZPL) into a native label
-// draft: same words in the same places, drawn by the app from then on.
-// Coordinate rules are spelled out in
+// draft: same words and graphics in the same places, drawn by the app from
+// then on. Coordinate rules are spelled out in
 // docs/superpowers/specs/2026-09-07-convert-printer-files-design.md.
+import { createCanvas } from '@napi-rs/canvas';
 import { parseFields } from './zpl-fields.js';
+import { parseGraphics, graphicToPng } from './zpl-graphics.js';
 import { SIZES, defaultLayout } from './layout.js';
 import { upcCheckDigit } from './barcode.js';
 
@@ -12,11 +14,21 @@ const ROTATION_UPRIGHT = { N: 0, R: 90, I: 180, B: 270 };
 // flipped 180° and un-rotated, a bottom-up (B) field reads left to right.
 const ROTATION_5X3 = { B: 0, N: 90, I: 270, R: 180 };
 
+const measureCtx = createCanvas(1, 1).getContext('2d');
+// Width the app's renderer will give this text at this height, so the box
+// is exactly as wide as needed and the text keeps its full size.
+function measuredWidth(text, h, bold = true) {
+  measureCtx.font = `${bold ? 'bold ' : ''}${h}px Arial`;
+  return Math.ceil(measureCtx.measureText(text).width) + 4;
+}
+
+// ^FH hex escapes become characters and \& (new line) a space; the spacing
+// inside a field is part of its design and stays as typed.
 function decodeText(raw) {
   return raw
     .replace(/\\([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
     .replace(/\\&/g, ' ')
-    .replace(/\s+/g, ' ')
+    .replace(/[\r\n\t]+/g, ' ')
     .trim();
 }
 
@@ -31,7 +43,12 @@ function guessSize(label, zpl, fields) {
   return { size: '2x1.25', warning: 'file declares no size — assumed 2 × 1.25' };
 }
 
-const estWidth = (text, w) => Math.max(40, Math.round(text.length * w * 0.6));
+// In the app's model a box is always the area the element covers on the
+// label; the renderer draws rotated content to fit inside it. So a sideways
+// field's box is simply its visual footprint.
+function placeRotated(footprint, rotation) {
+  return { ...footprint, rotation };
+}
 
 // Keep a box inside the design canvas: the editor refuses layouts that
 // stick out, and a file's baseline maths can land a dot or two past the edge.
@@ -47,16 +64,34 @@ function clampBox(box, size) {
   };
 }
 
-// Box for a text field in design space.
-function textBox(f, size, text) {
-  const h = f.font?.h ?? 30;
-  const w = estWidth(text, f.font?.w ?? h);
-  const shift = f.block?.align === 'C' ? Math.round((f.block.w - w) / 2) : 0;
-  if (size === '3x5') {
-    return { box: { x: 1015 - f.y + shift, y: f.x + 1 - h, w, h }, rotation: ROTATION_5X3[f.orient] ?? 0 };
-  }
+// Design-space anchor and rotation of a field: the top-left of an unrotated
+// line of height h starting at the field's origin.
+function anchor(f, size, h) {
+  if (size === '3x5') return { x: 1015 - f.y, y: f.x + 1 - h, rotation: ROTATION_5X3[f.orient] ?? 0 };
   const top = f.origin === 'FT' ? f.y - h : f.y;
-  return { box: { x: f.x + shift, y: top, w, h }, rotation: ROTATION_UPRIGHT[f.orient] ?? 0 };
+  return { x: f.x, y: top, rotation: ROTATION_UPRIGHT[f.orient] ?? 0 };
+}
+
+// Zebra's built-in font 0 is a condensed face: at the same nominal size it
+// runs about 0.85× the width of Arial bold (measured against Labelary
+// renders). A field's own w/h ratio condenses it further.
+const ZEBRA_CONDENSE = 0.85;
+const stretchOf = (font) => Math.round(ZEBRA_CONDENSE * ((font?.w && font?.h) ? font.w / font.h : 1) * 100) / 100;
+
+function textExtra(f, size, text) {
+  const h = f.font?.h ?? 30;
+  const stretch = stretchOf(f.font);
+  const a = anchor(f, size, h);
+  const centred = f.block?.align === 'C' && f.block.w > 0;
+  const w = centred ? f.block.w : Math.ceil(measuredWidth(text, h) * stretch);
+  const upright = a.rotation === 0 || a.rotation === 180;
+  // For sideways text the footprint is h wide and w tall.
+  const footprint = upright ? { x: a.x, y: a.y, w, h } : { x: a.x, y: a.y, w: h, h: w };
+  const box = placeRotated(footprint, a.rotation);
+  return {
+    text, box: { x: box.x, y: box.y, w: box.w, h: box.h }, rotation: a.rotation,
+    fit: true, bold: true, align: centred ? 'C' : 'L', stretch,
+  };
 }
 
 // The ^BY that precedes a barcode carries its bar height.
@@ -66,22 +101,32 @@ function barHeightBefore(zpl, field) {
   return matches.length ? Number(matches[matches.length - 1][1]) : 100;
 }
 
-function barcodeBox(f, size, zpl) {
-  const barHeight = barHeightBefore(zpl, f);
+// The rectangle a barcode covers in print space. ^FO is always the top-left
+// corner; ^FT's origin moves with the orientation: bottom-left (N),
+// top-left (R), top-right (I), bottom-right (B).
+function barcodePrintRect(f, barHeight) {
   const w = 285; // module width 3 × 95 modules, what barcodeGeometry() yields
-  const h = barHeight + 30;
-  if (size === '3x5') {
-    const rotated = f.orient === 'N' || f.orient === 'I';
-    return {
-      x: 1015 - f.y,
-      y: Math.max(0, f.x + 1 - (rotated ? w : h)),
-      w: rotated ? h : w,
-      h: rotated ? w : h,
-      rotation: rotated ? 270 : 0,
-    };
+  const h = barHeight + 30; // bars plus the digits underneath
+  const sideways = f.orient === 'R' || f.orient === 'B';
+  const rw = sideways ? h : w;
+  const rh = sideways ? w : h;
+  if (f.origin === 'FO') return { x: f.x, y: f.y, w: rw, h: rh };
+  switch (f.orient) {
+    case 'R': return { x: f.x, y: f.y, w: rw, h: rh };
+    case 'I': return { x: f.x - rw, y: f.y, w: rw, h: rh };
+    case 'B': return { x: f.x - rw, y: f.y - rh, w: rw, h: rh };
+    default: return { x: f.x, y: f.y - barHeight, w: rw, h: rh };
   }
-  const top = f.origin === 'FT' ? f.y - barHeight : f.y;
-  return { x: f.x, y: Math.max(0, top), w, h, rotation: ROTATION_UPRIGHT[f.orient] ?? 0 };
+}
+
+function barcodeBox(f, size, zpl) {
+  const r = barcodePrintRect(f, barHeightBefore(zpl, f));
+  // Design-space footprint: 5x3 files are flipped and un-rotated (see spec).
+  const footprint = size === '3x5'
+    ? { x: 1015 - r.y - r.h, y: r.x + 1, w: r.h, h: r.w }
+    : r;
+  const rotation = (size === '3x5' ? ROTATION_5X3 : ROTATION_UPRIGHT)[f.orient] ?? 0;
+  return placeRotated(footprint, rotation);
 }
 
 function isUpcField(zpl, field) {
@@ -90,13 +135,25 @@ function isUpcField(zpl, field) {
   return lastBarcodeCmd?.[1] === 'U';
 }
 
-export function convertFileLabel(label, { generateBarcode }) {
+async function imageExtras(zpl, size) {
+  const out = [];
+  for (const g of parseGraphics(zpl)) {
+    const png = await graphicToPng(g, { rotate90cw: size === '3x5' });
+    const top = g.origin === 'FT' ? g.y - g.height : g.y;
+    const box = size === '3x5'
+      ? { x: 1015 - top - g.height, y: g.x + 1, w: g.height, h: g.width }
+      : { x: g.x, y: top, w: g.width, h: g.height };
+    out.push({ kind: 'image', text: '', image: png.image, box, rotation: 0 });
+  }
+  return out;
+}
+
+export async function convertFileLabel(label, { generateBarcode }) {
   const warnings = [];
   const zpl = label.zpl;
   const fields = parseFields(zpl);
   const { size, warning } = guessSize(label, zpl, fields);
   if (warning) warnings.push(warning);
-  if (/\^GF/.test(zpl)) warnings.push('embedded graphic dropped — the app cannot hold images');
 
   const texts = fields
     .filter((f) => f.kind === 'text')
@@ -111,14 +168,10 @@ export function convertFileLabel(label, { generateBarcode }) {
   const [nameField, ...rest] = texts;
   const name = nameField?.decoded ?? label.fields.name;
   if (nameField) {
-    const { box, rotation } = textBox(nameField, size, nameField.decoded);
-    layout.name = { ...box, rotation };
+    const { box, rotation, stretch } = textExtra(nameField, size, nameField.decoded);
+    layout.name = { ...box, rotation, stretch };
   }
-  const extras = [];
-  for (const f of rest) {
-    const { box, rotation } = textBox(f, size, f.decoded);
-    extras.push({ text: f.decoded, box, rotation });
-  }
+  const extras = rest.map((f) => textExtra(f, size, f.decoded));
 
   // Barcode: UPC-A only; anything else is kept as text. The printer encodes
   // the first 11 digits of a ^BU payload and computes the check digit
@@ -137,16 +190,22 @@ export function convertFileLabel(label, { generateBarcode }) {
       : barcode
         ? `extra barcode ${b.text} kept as text — the app holds one barcode per label`
         : `barcode ${b.text} is too short for UPC-A — replaced with a new one`);
-    const { box, rotation } = textBox({ ...b, font: { h: 30, w: 30 } }, size, b.text);
-    extras.push({ text: b.text, box, rotation });
+    extras.push(textExtra({ ...b, font: { h: 30, w: 30 } }, size, b.text));
   }
   if (!barcode) {
     barcode = generateBarcode();
     if (!barcodes.length) warnings.push('file had no barcode — a new UPC-A was generated');
   }
 
+  // Graphics (logos, or text ZebraDesigner turned into pictures) ride along
+  // as image extras; anything not in the Z64 encoding is dropped.
+  const images = await imageExtras(zpl, size);
+  const graphicCount = (zpl.match(/\^GFA/g) ?? []).length;
+  if (graphicCount > images.length) warnings.push(`${graphicCount - images.length} embedded graphic(s) dropped — unsupported encoding`);
+  extras.push(...images);
+
   if (extras.length > MAX_EXTRAS) {
-    warnings.push(`${extras.length - MAX_EXTRAS} text lines dropped — the app allows 20 extra fields`);
+    warnings.push(`${extras.length - MAX_EXTRAS} fields dropped — the app allows 20 extra fields`);
     extras.length = MAX_EXTRAS;
   }
   for (const key of Object.keys(layout)) layout[key] = clampBox(layout[key], size);

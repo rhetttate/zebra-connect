@@ -66,12 +66,30 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
         showDescription: draft.options?.showDescription ?? defaultShowDescription(draft.size),
       },
       layout: draft.layout ?? defaultLayout(draft.size),
-      extras: (Array.isArray(draft.extras) ? draft.extras : []).slice(0, 20).map((extra) => ({
-        id: typeof extra.id === 'string' && extra.id ? extra.id : crypto.randomUUID(),
-        text: String(extra.text ?? ''),
-        box: extra.box,
-        rotation: extra.rotation ?? 0,
-      })),
+      extras: (Array.isArray(draft.extras) ? draft.extras : []).slice(0, 20).map((extra) => {
+        const isImage = extra.kind === 'image';
+        const out = {
+          id: typeof extra.id === 'string' && extra.id ? extra.id : crypto.randomUUID(),
+          text: isImage ? '' : String(extra.text ?? ''),
+          box: extra.box,
+          rotation: extra.rotation ?? 0,
+        };
+        if (isImage) {
+          // Only a PNG data URL of sane size may be stored; nothing else is drawn.
+          if (typeof extra.image !== 'string' || extra.image.length > 400_000
+            || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(extra.image)) {
+            throw Object.assign(new Error('invalid image field'), { status: 400 });
+          }
+          out.kind = 'image';
+          out.image = extra.image;
+        }
+        if (extra.fit) out.fit = true;
+        if (extra.bold) out.bold = true;
+        if (['L', 'C', 'R'].includes(extra.align)) out.align = extra.align;
+        const stretch = Number(extra.stretch);
+        if (Number.isFinite(stretch) && stretch >= 0.2 && stretch <= 3) out.stretch = stretch;
+        return out;
+      }),
     };
     if (label.fields.barcode && !validateUpcA(label.fields.barcode)) {
       throw Object.assign(new Error('barcode must be a valid 12-digit UPC-A'), { status: 400 });
@@ -174,8 +192,8 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
   }));
 
   // Converting a printer file yields a normal label that opens in the editor.
-  function convertOne(label, remove) {
-    const { draft, warnings } = convertFileLabel(label, {
+  async function convertOne(label, remove) {
+    const { draft, warnings } = await convertFileLabel(label, {
       generateBarcode: () => generateUpcA((c) => store.barcodeExists(c, label.id)),
     });
     // Real product codes may be shared by several labels (sale variants etc.).
@@ -184,12 +202,12 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
     return { label: created, warnings };
   }
 
-  app.post('/api/labels/convert-all', wrap((req, res) => {
+  app.post('/api/labels/convert-all', wrap(async (req, res) => {
     const converted = [];
     const failed = [];
     for (const label of store.list().filter((l) => l.kind === 'prn')) {
       try {
-        const { label: created, warnings } = convertOne(label, true);
+        const { label: created, warnings } = await convertOne(label, true);
         converted.push({ id: created.id, name: created.fields.name, warnings });
       } catch (err) {
         failed.push({ id: label.id, name: label.fields.name, error: err.message });
@@ -198,9 +216,9 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
     res.json({ converted, failed });
   }));
 
-  app.post('/api/labels/:id/convert', wrap((req, res) => {
+  app.post('/api/labels/:id/convert', wrap(async (req, res) => {
     const label = requireFileLabel(req.params.id);
-    res.json(convertOne(label, Boolean(req.body?.remove)));
+    res.json(await convertOne(label, Boolean(req.body?.remove)));
   }));
 
   // Preview of a raw ZPL job, sized from the file itself or the loaded roll.

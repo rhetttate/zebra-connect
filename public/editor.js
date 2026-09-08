@@ -20,7 +20,7 @@ function elementList(draft) {
   }
   items.push({ key: 'barcode', tag: 'BARCODE', box: draft.layout.barcode, removable: false });
   for (const extra of draft.extras ?? []) {
-    items.push({ key: `extra:${extra.id}`, tag: 'FIELD', box: extra.box, extra, removable: true });
+    items.push({ key: `extra:${extra.id}`, tag: extra.kind === 'image' ? 'IMAGE' : 'FIELD', box: extra.box, extra, removable: true });
   }
   return items;
 }
@@ -218,10 +218,15 @@ export function renderEditor(container, labelOrDraft) {
     for (const extra of draft.extras) {
       const row = document.createElement('div');
       row.className = 'extra-row';
-      row.innerHTML = `<input autocomplete="off"><button class="danger" title="Remove field">${icon('trash')}</button>`;
-      const input = row.querySelector('input');
-      input.value = extra.text;
-      input.oninput = () => { extra.text = input.value; refreshPreview(); };
+      if (extra.kind === 'image') {
+        // A picture from an imported printer file: movable on the preview, not typed.
+        row.innerHTML = `<span class="hint" style="flex:1;margin:0">Image (from the imported file)</span><button class="danger" title="Remove image">${icon('trash')}</button>`;
+      } else {
+        row.innerHTML = `<input autocomplete="off"><button class="danger" title="Remove field">${icon('trash')}</button>`;
+        const input = row.querySelector('input');
+        input.value = extra.text;
+        input.oninput = () => { extra.text = input.value; refreshPreview(); };
+      }
       row.querySelector('button').onclick = () => removeExtra(extra);
       els.extrasList.appendChild(row);
     }

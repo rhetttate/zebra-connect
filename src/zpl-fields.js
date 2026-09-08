@@ -6,6 +6,7 @@
 const POS = /\^(FT|FO)(\d+),(\d+)/g;
 const FONT = /\^A([0-9A-Z@])([NRIB])?,(\d+),(\d+)/;
 const BARCODE = /\^B[A-Z0-9]/;
+const BARCODE_ORIENT = /\^B(?!Y)[A-Z0-9]([NRIB])/;
 const PAYLOAD = /\^FD([\s\S]*?)\^FS/;
 const BLOCK = /\^FB(\d+),\d*,\d*,([LCRJ]?)/;
 
@@ -22,9 +23,13 @@ function segments(zpl) {
     const font = FONT.exec(body);
     const fontNums = font ? `${font[3]},${font[4]}` : '';
     const block = BLOCK.exec(body);
+    const kind = BARCODE.test(body.slice(0, payload.index)) ? 'barcode' : 'text';
+    // A barcode's orientation is the letter after its ^B? command (^BUI, ^BCR…);
+    // text takes it from the font command.
+    const barcodeOrient = kind === 'barcode' ? BARCODE_ORIENT.exec(body.slice(0, payload.index))?.[1] : null;
     out.push({
       origin: m[1], x: Number(m[2]), y: Number(m[3]),
-      orient: font ? (font[2] ?? 'N') : 'N',
+      orient: barcodeOrient ?? (font ? (font[2] ?? 'N') : 'N'),
       block: block ? { w: Number(block[1]), align: block[2] || 'L' } : null,
       posNumStart: m.index + 3, posNumEnd: m.index + m[0].length,
       font: font ? {
@@ -32,7 +37,7 @@ function segments(zpl) {
         numStart: m.index + font.index + font[0].length - fontNums.length,
         numEnd: m.index + font.index + font[0].length,
       } : null,
-      kind: BARCODE.test(body.slice(0, payload.index)) ? 'barcode' : 'text',
+      kind,
       text: payload[1],
       textStart: m.index + payload.index + 3,
       textEnd: m.index + payload.index + 3 + payload[1].length,

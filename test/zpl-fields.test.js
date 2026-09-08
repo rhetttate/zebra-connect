@@ -55,6 +55,14 @@ test('labelInches reads ^PW/^LL at 203 dpi', () => {
   assert.equal(labelInches('^XA^FDx^FS^XZ'), null);
 });
 
+test('a barcode field takes its orientation from its ^B command, not a font', () => {
+  const zpl = '^XA^BY3,2,98^FT337,48^BUI,,Y,N,Y^FH\\^FD893463827495^FS^BY2^FT10,10^BCN,60,Y,N,N^FD123^FS^XZ';
+  const [upc, c128] = parseFields(zpl);
+  assert.equal(upc.kind, 'barcode');
+  assert.equal(upc.orient, 'I');
+  assert.equal(c128.orient, 'N');
+});
+
 test('parseFields reports font orientation and ^FB blocks', () => {
   const zpl = '^XA^FT76,1015^A0B,72,43^FB1014,1,18,C^FH\\^FDFULLY COOKED\\5C&^FS^FT10,10^A0N,20,20^FDplain^FS^XZ';
   const [a, b] = parseFields(zpl);

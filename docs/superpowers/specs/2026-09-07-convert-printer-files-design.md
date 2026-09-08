@@ -63,6 +63,38 @@ drags them if needed.
   calls the single route with `remove: true`, shows the warnings as a toast
   if any, and opens the new label in the editor.
 
+## Revision 2 (same day): fidelity fixes after the first bulk conversion
+
+Comparing converted labels with Labelary renders of the originals showed three
+gaps. The fixes extend the label model slightly; app-made labels are
+unaffected because every new property is optional.
+
+1. **Fitted text extras.** Extras gain `fit: true` (single line sized to the
+   box like the name, shrinking only if wider than the box), `bold: true`, and
+   `align: 'L'|'C'|'R'`. Converted text uses `fit + bold`; `^FB` blocks with
+   `C` alignment get `align: 'C'` and a box spanning the block width. Text
+   width is measured with the app's own font (Arial bold at the field's
+   height) instead of estimated, so fitted text renders at full size. Spaces
+   inside a field are preserved.
+2. **Image extras.** `^GFA` graphics (all `:Z64:` zlib+base64 in these files)
+   are decoded to 1-bit bitmaps and stored as extras with `kind: 'image'` and
+   a PNG data URL in `image` (capped at 300 KB each). They render into the
+   label at their box, rotate like any box, and appear in the editor as an
+   "Image" row with a movable box and a remove button but no text input. For
+   `3x5` files the bitmap is rotated 90° clockwise and its box mapped with the
+   same flip as text (`x = 1015 − py − h`, `y = px + 1`, width/height
+   swapped).
+3. **Rotated placement.** In the app's model a box is always the area the
+   element covers on the label; the renderer draws rotated content to fit
+   inside it (swapping width/height internally). A sideways barcode or text
+   therefore gets its visual footprint as its box. Barcode footprints in
+   print space follow the `^FT` origin rule per orientation: bottom-left
+   (N), top-left (R), top-right (I), bottom-right (B); `^FO` is always
+   top-left. A barcode's orientation is read from its own `^B?` command.
+
+`src/zpl-graphics.js` (server only; needs zlib and canvas) parses and
+decodes graphics. `renderCanvas` becomes async to load images.
+
 ## Testing
 
 - `test/convert-file.test.js`: text → name/extras with expected boxes for a
