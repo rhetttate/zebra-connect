@@ -152,7 +152,7 @@ async function renderCanvas(label, { includeBarcode }) {
   for (const extra of label.extras ?? []) {
     const box = { ...extra.box, rotation: extra.rotation };
     if (extra.kind === 'image') await drawImageExtra(ctx, extra);
-    else if (extra.fit) drawFitted(ctx, extra.text, box, { bold: extra.bold, align: extra.align, stretch: extra.stretch });
+    else if (extra.fit) drawFitted(ctx, extra.text, box, { bold: extra.bold, align: extra.align, stretch: extra.stretch, maxSize: extra.textSize ?? 400 });
     else drawWrappedText(ctx, extra.text, box, { align: extra.align });
   }
   if (includeBarcode) drawBarcode(ctx, label.fields.barcode, label.layout.barcode);

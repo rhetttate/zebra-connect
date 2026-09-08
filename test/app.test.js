@@ -427,3 +427,18 @@ test('labels keep known extra roles and drop unknown ones', async () => {
   assert.equal('role' in created.extras[2], false);
   close();
 });
+
+test('labels keep a sane textSize on extras and drop nonsense', async () => {
+  const { base, close } = await startApp();
+  const mk = (textSize) => ({ id: String(textSize), text: 'x', box: { x: 0, y: 0, w: 100, h: 40 }, rotation: 0, textSize });
+  const created = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x5', fields: { name: 'Flour' }, extras: [mk(30), mk('abc'), mk(1000), mk(27.6)] }),
+  })).json();
+  assert.equal(created.extras[0].textSize, 30);
+  assert.equal('textSize' in created.extras[1], false);
+  assert.equal('textSize' in created.extras[2], false);
+  assert.equal(created.extras[3].textSize, 28);
+  close();
+});

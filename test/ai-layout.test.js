@@ -170,3 +170,43 @@ test('every size × extra count × ingredients × description lays out clean', (
 test('unknown size throws', () => {
   assert.throws(() => layoutDraft({ size: '9x9', content: content() }), /unknown size/);
 });
+
+test('band extras share one text size cap, set by the longest line', () => {
+  const draft = layoutDraft({ size: '3x5', content: content({ extras: [
+    { role: 'lot', text: 'Lot 42' },
+    { role: 'best_by', text: 'Best by Oct 15, 2026' },
+  ] }) });
+  const [lot, best] = draft.extras;
+  assert.equal(lot.textSize, best.textSize);
+  // Half column is 300 wide; 20 chars at 0.55 em each → floor(300 / 11) = 27.
+  assert.equal(best.textSize, 27);
+  assert.equal(lot.box.w, 300);
+  assert.equal(best.box.w, 300);
+});
+
+test('a long extra takes a full-width row on 5x3', () => {
+  const draft = layoutDraft({ size: '3x5', content: content({ extras: [
+    { role: 'lot', text: 'Lot 42' },
+    { role: 'best_by', text: 'Best by Oct 15, 2026' },
+    { role: 'allergens', text: 'Contains: soy. May contain: milk, tree nuts' },
+    { role: 'net', text: 'Net wt 3 oz (85 g)' },
+  ] }) });
+  const [lot, best, allergens, net] = draft.extras;
+  assert.equal(lot.box.y, best.box.y, 'two short extras share a row');
+  assert.equal(allergens.box.w, 610, 'the long line spans the body');
+  assert.ok(allergens.box.y > lot.box.y);
+  assert.ok(net.box.y > allergens.box.y, 'the next short extra starts a fresh row');
+  assert.equal(net.box.x, 20);
+  const sizes = new Set(draft.extras.map((e) => e.textSize));
+  assert.equal(sizes.size, 1, 'one size across the band');
+  assertClean(draft);
+});
+
+test('small sizes cap band text too; ingredients never get a cap', () => {
+  const small = layoutDraft({ size: '3x2', content: content({ extras: [{ role: 'lot', text: 'Lot 9' }] }) });
+  // Row height 50 → cap is 40; "Lot 9" would fit far larger.
+  assert.equal(small.extras[0].textSize, 40);
+  const big = layoutDraft({ size: '3x5', content: content({ ingredients: 'Almonds.', extras: [{ role: 'lot', text: 'Lot 9' }] }) });
+  const ing = big.extras.find((e) => e.role === 'ingredients');
+  assert.equal('textSize' in ing, false);
+});

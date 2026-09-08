@@ -94,6 +94,8 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
         if (['L', 'C', 'R'].includes(extra.align)) out.align = extra.align;
         const stretch = Number(extra.stretch);
         if (Number.isFinite(stretch) && stretch >= 0.2 && stretch <= 3) out.stretch = stretch;
+        const textSize = Number(extra.textSize);
+        if (Number.isFinite(textSize) && textSize >= 8 && textSize <= 400) out.textSize = Math.round(textSize);
         return out;
       }),
     };

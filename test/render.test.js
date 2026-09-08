@@ -144,3 +144,25 @@ test('wrapped extras honour align L (left, top anchored) and default to centred'
   assert.ok(!blackIn(centred, 20, 80, 150, 210), 'centred text leaves the left edge blank');
   assert.ok(blackIn(centred, 200, 340, 150, 210), 'centred text sits in the middle');
 });
+
+function blackRowCount(bmp, x0, x1, y0, y1) {
+  let rows = 0;
+  for (let y = y0; y < y1; y++) {
+    if (blackIn(bmp, x0, x1, y, y + 1)) rows++;
+  }
+  return rows;
+}
+
+test('fitted extras honour textSize as a cap on the font size', async () => {
+  const base = {
+    size: '3x2',
+    fields: { name: '', description: '', barcode: '' },
+    options: { showDescription: false },
+    layout: defaultLayout('3x2'),
+  };
+  const extra = { id: 'e1', text: 'Hi', box: { x: 20, y: 150, w: 500, h: 60 }, rotation: 0, fit: true };
+  const capped = await renderPrintBitmap({ ...base, extras: [{ ...extra, textSize: 20 }] });
+  const free = await renderPrintBitmap({ ...base, extras: [extra] });
+  assert.ok(blackRowCount(capped, 20, 520, 150, 210) < 25, 'capped text is about 20px tall');
+  assert.ok(blackRowCount(free, 20, 520, 150, 210) > 30, 'uncapped text fills the 60px box');
+});

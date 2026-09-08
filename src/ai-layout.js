@@ -14,6 +14,19 @@ const PARAMS = {
 
 const box = (x, y, w, h) => ({ x, y, w, h });
 
+// Rough Arial glyph width as a fraction of the font size; the renderer still
+// shrinks text that measures wider, so this only has to be close.
+const CHAR_W = 0.55;
+// Band text never grows past this share of its row, so short values like
+// "Lot 42" stay in proportion with dates and allergen lines.
+const SIZE_CAP = 0.8;
+// On the 5x3, an extra longer than this takes a full-width row.
+const WIDE_CHARS = 24;
+
+function estimateSize(text, width, rowH) {
+  return Math.max(12, Math.min(Math.round(rowH * SIZE_CAP), Math.floor(width / (CHAR_W * text.length))));
+}
+
 function orderedExtras(extras) {
   return (Array.isArray(extras) ? extras : [])
     .map((e) => ({ role: e?.role, text: String(e?.text ?? '').trim() }))
@@ -62,21 +75,31 @@ export function layoutDraft({ size, content }) {
       y += P.descLineH + P.gap;
     }
     const colW = Math.floor((bodyW - (P.cols - 1) * P.gap) / P.cols);
-    const placed = extras.map((e, i) => ({
-      id: crypto.randomUUID(),
-      role: e.role,
-      text: e.text,
-      box: box(
-        P.margin + (i % P.cols) * (colW + P.gap),
-        y + Math.floor(i / P.cols) * (P.rowH + P.gap),
-        colW,
-        P.rowH,
-      ),
-      rotation: 0,
-      fit: true,
-      align: 'L',
-    }));
-    if (extras.length) y += Math.ceil(extras.length / P.cols) * (P.rowH + P.gap);
+    const placed = [];
+    let col = 0;
+    let row = 0;
+    for (const e of extras) {
+      const wide = P.cols > 1 && e.text.length > WIDE_CHARS;
+      if (wide && col > 0) { col = 0; row++; }
+      const w = wide ? bodyW : colW;
+      placed.push({
+        id: crypto.randomUUID(),
+        role: e.role,
+        text: e.text,
+        box: box(P.margin + col * (colW + P.gap), y + row * (P.rowH + P.gap), w, P.rowH),
+        rotation: 0,
+        fit: true,
+        align: 'L',
+      });
+      if (wide) { col = 0; row++; }
+      else { col++; if (col === P.cols) { col = 0; row++; } }
+    }
+    const rows = row + (col > 0 ? 1 : 0);
+    if (placed.length) {
+      const textSize = Math.min(...placed.map((p) => estimateSize(p.text, p.box.w, P.rowH)));
+      for (const p of placed) p.textSize = textSize;
+      y += rows * (P.rowH + P.gap);
+    }
     return { layout, placed, bodyY: y, bodyH: bodyBottom - y };
   }
 
