@@ -40,6 +40,7 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
   app.use(express.static(path.join(here, '..', 'public')));
 
   const ROTATIONS = [0, 90, 180, 270];
+  const EXTRA_ROLES = ['lot', 'best_by', 'packed_on', 'allergens', 'net', 'note', 'ingredients'];
 
   function validateBox(box, what) {
     if (!box || ![box.x, box.y, box.w, box.h].every(Number.isFinite)) {
@@ -84,6 +85,7 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
           out.image = extra.image;
         }
         if (extra.fit) out.fit = true;
+        if (EXTRA_ROLES.includes(extra.role)) out.role = extra.role;
         if (extra.bold) out.bold = true;
         if (['L', 'C', 'R'].includes(extra.align)) out.align = extra.align;
         const stretch = Number(extra.stretch);

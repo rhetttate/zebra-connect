@@ -383,3 +383,24 @@ test('station status reports when a station last polled', async () => {
   assert.ok(after.stationSeenSecondsAgo !== null && after.stationSeenSecondsAgo < 5);
   close();
 });
+
+test('labels keep known extra roles and drop unknown ones', async () => {
+  const { base, close } = await startApp();
+  const created = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      size: '3x5',
+      fields: { name: 'Flour' },
+      extras: [
+        { id: 'a', role: 'lot', text: 'Lot 1', box: { x: 0, y: 0, w: 100, h: 40 }, rotation: 0 },
+        { id: 'b', role: 'ingredients', text: 'Ingredients: wheat', box: { x: 0, y: 50, w: 100, h: 40 }, rotation: 0 },
+        { id: 'c', role: 'bogus', text: 'x', box: { x: 0, y: 100, w: 100, h: 40 }, rotation: 0 },
+      ],
+    }),
+  })).json();
+  assert.equal(created.extras[0].role, 'lot');
+  assert.equal(created.extras[1].role, 'ingredients');
+  assert.equal('role' in created.extras[2], false);
+  close();
+});
