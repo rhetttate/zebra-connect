@@ -1,8 +1,6 @@
-export const SIZES = {
-  '3x5': { width: 1015, height: 576 },
-  '3x2': { width: 576, height: 406 },
-  '2x1.25': { width: 406, height: 253 },
-};
+import { SIZES } from '../shared/sizes.js';
+export { SIZES };
+export { barcodeGeometry } from '../shared/barcode.js';
 
 // The ZQ620's print head is 576 dots wide, so the landscape 5x3 designer
 // canvas is rotated 90° clockwise at print time.
@@ -36,16 +34,4 @@ export function defaultLayout(size) {
 
 export function defaultShowDescription(size) {
   return size === '3x5';
-}
-
-export function barcodeGeometry(box) {
-  const moduleWidth = Math.max(2, Math.floor(box.w / 95));
-  const width = moduleWidth * 95;
-  return {
-    moduleWidth,
-    width,
-    x: box.x + Math.floor((box.w - width) / 2),
-    y: box.y,
-    barHeight: Math.max(20, box.h - 30),
-  };
 }

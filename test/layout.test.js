@@ -44,7 +44,7 @@ test('barcodeGeometry centers a whole-module barcode in the box', () => {
   assert.equal(g.width, 380);                // 4*95
   assert.equal(g.x, 98);
   assert.equal(g.y, 760);
-  assert.equal(g.barHeight, 190);            // 220-30
+  assert.equal(g.barHeight, 182); // 220 - 32 digit line - 6            // 220-30
   const small = barcodeGeometry({ x: 0, y: 0, w: 100, h: 40 });
   assert.equal(small.moduleWidth, 2);        // clamped minimum
   assert.equal(small.barHeight, 20);         // clamped minimum

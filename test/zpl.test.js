@@ -27,8 +27,8 @@ test('buildLabelZpl composes a complete hybrid job', () => {
   assert.ok(zpl.includes('^PW576'));
   assert.ok(zpl.includes('^LL406'));
   assert.ok(zpl.includes('^FO0,0^GFA,4,4,2,FF000FF0^FS'));
-  // geometry: moduleWidth 4, x 98, barHeight 190; 11 data digits only
-  assert.ok(zpl.includes('^FO98,160^BY4^BUN,190,Y,N,Y^FD03600029145^FS'));
+  // geometry: moduleWidth 4, x 98, barHeight 182; 11 data digits only
+  assert.ok(zpl.includes('^FO98,160^BY4^BUN,182,Y,N,Y^FD03600029145^FS'));
   assert.ok(zpl.includes('^PQ3'));
   assert.ok(zpl.trimEnd().endsWith('^XZ'));
 });
