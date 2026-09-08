@@ -200,3 +200,7 @@ test('drawLabel reports the size each text element was drawn at', async () => {
   assert.ok(sizes.description >= 12);
   assert.equal(sizes['extra:e1'], 20, 'a capped fitted extra reports its cap');
 });
+
+test('the server draws in Arimo when the font files are present', () => {
+  assert.equal(fontFamily(), 'Arimo');
+});

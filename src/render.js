@@ -1,9 +1,20 @@
-import { createCanvas, loadImage } from '@napi-rs/canvas';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
 import { SIZES } from '../shared/sizes.js';
 import { drawLabel, setFont, fontFamily } from '../shared/render-core.js';
 
-// Task 3 registers the Arimo files here; until then the server draws in Arial.
-setFont('Arial');
+// The phone previews in the same Arimo files (served from public/fonts), so
+// preview and print agree. Missing files fall back to Arial with a warning.
+const here = path.dirname(fileURLToPath(import.meta.url));
+const FONT_FILES = ['Arimo-Regular.ttf', 'Arimo-Bold.ttf'].map((f) => path.join(here, '..', 'public', 'fonts', f));
+if (FONT_FILES.every((f) => fs.existsSync(f)) && FONT_FILES.every((f) => GlobalFonts.registerFromPath(f, 'Arimo'))) {
+  setFont('Arimo');
+} else {
+  console.warn('Arimo font files missing from public/fonts — drawing in Arial; phone previews may differ from prints');
+  setFont('Arial');
+}
 export { fontFamily };
 
 async function renderCanvas(label, { includeBarcode }) {
