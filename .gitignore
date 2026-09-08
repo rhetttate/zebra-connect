@@ -1,6 +1,9 @@
 node_modules/
 data/
 
+# AI label maker tuning output
+ai-label-out/
+
 # BLE console build output and scratch command files
 tools/ble-console/*.dll
 tools/ble-console/cmds-*.txt
