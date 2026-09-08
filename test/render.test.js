@@ -204,3 +204,23 @@ test('drawLabel reports the size each text element was drawn at', async () => {
 test('the server draws in Arimo when the font files are present', () => {
   assert.equal(fontFamily(), 'Arimo');
 });
+
+test('barcode draws UPC-A style: tall guards, outer digits beside the symbol', async () => {
+  // 3x2 default barcode box {98,225,380,175}: module 4, digits 32 tall, bars 137 tall.
+  const bmp = await renderPrintBitmap({
+    size: '3x2',
+    fields: { name: '', description: '', barcode: '036000291452' },
+    options: { showDescription: false },
+    layout: defaultLayout('3x2'),
+  }, { includeBarcode: true });
+  const guardRows = blackRowCount(bmp, 98, 102, 225, 400);          // module 0 (left guard)
+  // module 11 is a data bar of digit "3"; count only the bar band, since a
+  // printed digit may sit under this column further down
+  const dataRows = blackRowCount(bmp, 98 + 11 * 4, 98 + 12 * 4, 225, 362);
+  assert.ok(dataRows >= 130 && dataRows <= 140, `data bar ~137 rows, got ${dataRows}`);
+  assert.ok(guardRows >= dataRows + 25, `guard bar extends below the data bars (${guardRows} vs ${dataRows})`);
+  assert.ok(blackIn(bmp, 60, 94, 362, 394), 'first digit painted left of the symbol');
+  assert.ok(blackIn(bmp, 482, 520, 362, 394), 'check digit painted right of the symbol');
+  assert.ok(blackIn(bmp, 98 + 10 * 4, 98 + 45 * 4, 366, 394), 'digits 2-6 sit under the left half (modules 10-44 are all short bars)');
+  assert.ok(!blackIn(bmp, 98 + 10 * 4, 98 + 45 * 4, 362, 365), 'a clear gap between the short bars and the digit line');
+});

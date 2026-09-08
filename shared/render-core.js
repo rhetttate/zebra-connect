@@ -124,21 +124,38 @@ function drawWrappedText(ctx, text, box, { align = 'C', maxSize = 400 } = {}) {
   return used;
 }
 
+// UPC-A the way a printer draws it: the guard bars and the outer digits' bars
+// run down into the digit line, the first digit sits left of the symbol, five
+// digits under each half, the check digit to the right.
 function drawBarcode(ctx, code, box) {
   if (!validateUpcA(code)) return;
   drawRotated(ctx, box, (b) => {
     const g = barcodeGeometry(b);
+    const m = g.moduleWidth;
     const modules = encodeUpcAModules(code);
+    const tall = (i) => i <= 9 || (i >= 45 && i <= 49) || i >= 85;
     ctx.fillStyle = '#000';
     for (let i = 0; i < modules.length; i++) {
       if (modules[i] === '1') {
-        ctx.fillRect(g.x + i * g.moduleWidth, g.y, g.moduleWidth, g.barHeight);
+        ctx.fillRect(g.x + i * m, g.y, m, g.barHeight + (tall(i) ? g.digitHeight : 0));
       }
     }
-    ctx.font = `24px ${FONT}`;
+    ctx.font = `${g.digitHeight}px ${FONT}`;
+    ctx.textBaseline = 'alphabetic';
+    const baseline = g.y + g.barHeight + g.digitHeight;
+    ctx.textAlign = 'right';
+    ctx.fillText(code[0], g.x - m, baseline);
+    ctx.textAlign = 'left';
+    ctx.fillText(code[11], g.x + 95 * m + m, baseline);
     ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(code, g.x + g.width / 2, g.y + g.barHeight + 4);
+    const spread = (digits, fromModule, toModule) => {
+      const step = ((toModule - fromModule) * m) / digits.length;
+      for (let k = 0; k < digits.length; k++) {
+        ctx.fillText(digits[k], g.x + fromModule * m + step * (k + 0.5), baseline);
+      }
+    };
+    spread(code.slice(1, 6), 10, 45);
+    spread(code.slice(6, 11), 50, 85);
   });
 }
 
