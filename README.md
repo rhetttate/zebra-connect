@@ -40,9 +40,9 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
    **Continuous paper**, then **Calibrate** — the printer feeds a few
    labels while it measures them. Printing a label that doesn't match
    the loaded size asks for confirmation first.
-5. For photo extraction, paste an Anthropic API key
-   (console.anthropic.com) into Settings. Photo extraction uses
-   Claude with server-side refusal fallbacks enabled.
+5. For the AI label maker, paste an Anthropic API key
+   (console.anthropic.com) into Settings. It uses Claude with server-side
+   refusal fallbacks enabled.
 
 ## Labels
 
@@ -57,6 +57,13 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
   also be removed there).
 - **Add field** puts extra free-text fields on the label — lot numbers,
   dates, allergens. Layouts and extra fields save per label.
+- **Make it for me** (on the New label screen) builds a whole label from a
+  typed description, a photo of the product or its ingredient panel, or
+  both: name, a short description, lot, best-by and packed-on dates,
+  allergens, net weight, notes, and the full ingredient list. Ingredients
+  only fit on 5×3 labels. The draft opens in the editor for any tweaks.
+  To try inputs from the PC and see the result as a PNG:
+  `node tools/ai-label-try.mjs 3x5 --text "..." [--photo file.jpg]`.
 - **Add a .prn to the library** keeps a finished printer file (ZebraDesigner
   export) as a "printer file" entry: it shows in the list with its size, and
   tapping it opens a quantity/print sheet instead of the editor. Swipe the
