@@ -29,8 +29,10 @@ export function createStore(filePath) {
     list: () => [...labels].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     get: (id) => labels.find((l) => l.id === id),
     barcodeExists,
-    create(data) {
-      assertBarcodeFree(data);
+    // allowDuplicateBarcode: imported printer files carry real product codes,
+    // and several labels for one product legitimately share one.
+    create(data, { allowDuplicateBarcode = false } = {}) {
+      if (!allowDuplicateBarcode) assertBarcodeFree(data);
       const now = new Date().toISOString();
       const label = { id: crypto.randomUUID(), ...data, createdAt: now, updatedAt: now };
       labels.push(label);
@@ -41,7 +43,9 @@ export function createStore(filePath) {
       const i = labels.findIndex((l) => l.id === id);
       if (i === -1) throw new Error('not found');
       const merged = { ...labels[i], ...patch, id, createdAt: labels[i].createdAt };
-      assertBarcodeFree(merged, id);
+      // Keeping its own barcode is always fine (it may be a shared, imported
+      // code); only a change to a barcode another label uses is refused.
+      if (merged.fields?.barcode !== labels[i].fields?.barcode) assertBarcodeFree(merged, id);
       merged.updatedAt = new Date().toISOString();
       labels[i] = merged;
       save();

@@ -20,7 +20,7 @@ test('parseFields finds positioned text and barcode fields and skips graphics', 
     [1, 'barcode', '209990069008'],
     [2, 'text', 'SIDEWAYS'],
   ]);
-  assert.deepEqual(fields[0], { id: 0, kind: 'text', text: 'BACON        $69', x: 43, y: 50, origin: 'FT', font: { h: 48, w: 48 }, rotated: false });
+  assert.deepEqual(fields[0], { id: 0, kind: 'text', text: 'BACON        $69', x: 43, y: 50, origin: 'FT', font: { h: 48, w: 48 }, rotated: false, orient: 'N', block: null });
   assert.equal(fields[1].font, null);
   assert.equal(fields[2].rotated, true);
 });
@@ -53,6 +53,15 @@ test('applyFields ignores unknown ids and keeps numbers sane', () => {
 test('labelInches reads ^PW/^LL at 203 dpi', () => {
   assert.deepEqual(labelInches(SAMPLE), { w: 2, h: 1.25 });
   assert.equal(labelInches('^XA^FDx^FS^XZ'), null);
+});
+
+test('parseFields reports font orientation and ^FB blocks', () => {
+  const zpl = '^XA^FT76,1015^A0B,72,43^FB1014,1,18,C^FH\\^FDFULLY COOKED\\5C&^FS^FT10,10^A0N,20,20^FDplain^FS^XZ';
+  const [a, b] = parseFields(zpl);
+  assert.equal(a.orient, 'B');
+  assert.deepEqual(a.block, { w: 1014, align: 'C' });
+  assert.equal(b.orient, 'N');
+  assert.equal(b.block, null);
 });
 
 test('the browser copy of zpl-fields is identical to the server module', () => {

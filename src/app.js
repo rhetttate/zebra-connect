@@ -13,6 +13,7 @@ import { extractLabelFields, makeClient } from './extract.js';
 import { createQueue } from './queue.js';
 import { parsePrn, withQuantity } from './printer-file.js';
 import { parseFields, applyFields, labelInches } from './zpl-fields.js';
+import { convertFileLabel } from './convert-file.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -170,6 +171,36 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
     const label = requireFileLabel(req.params.id);
     const { zpl, size } = parsePrn(String(req.body?.zpl ?? ''), label.fields.name);
     res.json(store.update(label.id, { zpl, size, fields: { ...label.fields, name: cleanName(req.body, label.fields.name) } }));
+  }));
+
+  // Converting a printer file yields a normal label that opens in the editor.
+  function convertOne(label, remove) {
+    const { draft, warnings } = convertFileLabel(label, {
+      generateBarcode: () => generateUpcA((c) => store.barcodeExists(c, label.id)),
+    });
+    // Real product codes may be shared by several labels (sale variants etc.).
+    const created = store.create(normalizeDraft(draft), { allowDuplicateBarcode: true });
+    if (remove) store.remove(label.id);
+    return { label: created, warnings };
+  }
+
+  app.post('/api/labels/convert-all', wrap((req, res) => {
+    const converted = [];
+    const failed = [];
+    for (const label of store.list().filter((l) => l.kind === 'prn')) {
+      try {
+        const { label: created, warnings } = convertOne(label, true);
+        converted.push({ id: created.id, name: created.fields.name, warnings });
+      } catch (err) {
+        failed.push({ id: label.id, name: label.fields.name, error: err.message });
+      }
+    }
+    res.json({ converted, failed });
+  }));
+
+  app.post('/api/labels/:id/convert', wrap((req, res) => {
+    const label = requireFileLabel(req.params.id);
+    res.json(convertOne(label, Boolean(req.body?.remove)));
   }));
 
   // Preview of a raw ZPL job, sized from the file itself or the loaded roll.

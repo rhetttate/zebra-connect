@@ -63,6 +63,10 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
   card (or tap it and choose **Edit**) to change its text, barcode, field
   position and text size on a live preview; the preview is drawn by the
   Labelary web service, so it needs internet, while printing does not.
+  **Convert to app label** (on the print sheet or in that editor) turns the
+  file into a regular label with movable fields, keeping its UPC even when
+  other labels share it; graphics are dropped and extra barcodes become text.
+  `POST /api/labels/convert-all` converts every file in the library at once.
   **Print a .prn once** sends a file byte-for-byte without keeping it. To
   load a whole folder at once: `node tools/import-prn.mjs <folder> [server-url]`.
 

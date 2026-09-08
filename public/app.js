@@ -182,7 +182,7 @@ async function renderLibrary() {
     const q = filter.toLowerCase();
     cards.innerHTML = '';
     for (const label of labels) {
-      const hay = `${label.fields.name} ${label.fields.barcode}`.toLowerCase();
+      const hay = `${label.fields.name} ${label.fields.barcode} ${label.fields.description ?? ''}`.toLowerCase();
       if (q && !hay.includes(q)) continue;
       const card = document.createElement('div');
       card.className = 'card';
@@ -204,8 +204,10 @@ async function renderLibrary() {
           }),
           () => navigate(`#/file/${label.id}`));
       } else {
+        // A hidden description is the original file name of a converted label.
+        const tag = label.fields.description && !label.options?.showDescription ? `  ·  ${label.fields.description}` : '';
         card.querySelector('.sub').textContent =
-          `${SIZE_LABELS[label.size] ?? label.size}"  ·  ${label.fields.barcode}`;
+          `${SIZE_LABELS[label.size] ?? label.size}"  ·  ${label.fields.barcode}${tag}`;
         api.previewBlob(label).then((blob) => {
           const img = card.querySelector('img');
           img.onload = () => URL.revokeObjectURL(img.src);
@@ -250,6 +252,9 @@ export function openFilePrint(label, onDeleted) {
         <input id="file-qty" type="number" min="1" max="100" value="1" inputmode="numeric">
       </div>
       <div class="row">
+        <button id="file-convert" class="quiet">Convert to app label</button>
+      </div>
+      <div class="row">
         <button id="file-edit" class="quiet">Edit</button>
         <button id="file-delete" class="quiet">Delete</button>
         <button id="file-close" class="quiet">Close</button>
@@ -266,6 +271,17 @@ export function openFilePrint(label, onDeleted) {
   overlay.onclick = (e) => { if (e.target === overlay) close(); };
   overlay.querySelector('#file-close').onclick = close;
   overlay.querySelector('#file-edit').onclick = () => { close(); navigate(`#/file/${label.id}`); };
+  overlay.querySelector('#file-convert').onclick = async () => {
+    if (!confirm('Turn this file into a regular app label? The file entry is replaced by the new label.')) return;
+    try {
+      const { label: created, warnings } = await api.convertFile(label.id);
+      close();
+      if (warnings.length) showToast(warnings.join(' · '), true);
+      navigate(`#/edit/${created.id}`);
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
   overlay.querySelector('#file-print').onclick = async () => {
     const btn = overlay.querySelector('#file-print');
     const quantity = Math.min(Math.max(parseInt(overlay.querySelector('#file-qty').value, 10) || 1, 1), 100);

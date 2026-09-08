@@ -7,6 +7,7 @@ const POS = /\^(FT|FO)(\d+),(\d+)/g;
 const FONT = /\^A([0-9A-Z@])([NRIB])?,(\d+),(\d+)/;
 const BARCODE = /\^B[A-Z0-9]/;
 const PAYLOAD = /\^FD([\s\S]*?)\^FS/;
+const BLOCK = /\^FB(\d+),\d*,\d*,([LCRJ]?)/;
 
 // Each segment runs from a ^FT/^FO to the ^FS that closes its field, with
 // the character offsets of the three parts an edit may rewrite.
@@ -20,8 +21,11 @@ function segments(zpl) {
     if (!payload || body.includes('^GF')) continue; // graphics and empty fields are not editable
     const font = FONT.exec(body);
     const fontNums = font ? `${font[3]},${font[4]}` : '';
+    const block = BLOCK.exec(body);
     out.push({
       origin: m[1], x: Number(m[2]), y: Number(m[3]),
+      orient: font ? (font[2] ?? 'N') : 'N',
+      block: block ? { w: Number(block[1]), align: block[2] || 'L' } : null,
       posNumStart: m.index + 3, posNumEnd: m.index + m[0].length,
       font: font ? {
         h: Number(font[3]), w: Number(font[4]), rotated: (font[2] ?? 'N') !== 'N',
@@ -42,6 +46,8 @@ export function parseFields(zpl) {
     id, kind: s.kind, text: s.text, x: s.x, y: s.y, origin: s.origin,
     font: s.font ? { h: s.font.h, w: s.font.w } : null,
     rotated: Boolean(s.font?.rotated),
+    orient: s.orient,
+    block: s.block,
   }));
 }
 

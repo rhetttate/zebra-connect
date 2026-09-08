@@ -31,6 +31,7 @@ export const api = {
   saveFileFields: async (id, fields, name) => (await call(`/api/labels/${id}/fields`, json('PUT', { fields, name }))).json(),
   saveFileZpl: async (id, zpl, name) => (await call(`/api/labels/${id}/zpl`, json('PUT', { zpl, name }))).json(),
   previewZplBlob: async (zpl) => (await call('/api/preview-zpl', json('POST', { zpl }))).blob(),
+  convertFile: async (id) => (await call(`/api/labels/${id}/convert`, json('POST', { remove: true }))).json(),
   extract: async (file) => (await call('/api/extract', {
     method: 'POST', headers: { 'content-type': file.type }, body: file,
   })).json(),

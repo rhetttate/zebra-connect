@@ -34,6 +34,7 @@ export async function renderFileEditor(container, label) {
       <button id="fe-print" class="quiet">Print</button>
     </div>
     <button id="fe-advanced" class="quiet" style="width:100%">Advanced: edit raw ZPL</button>
+    <button id="fe-convert" class="quiet" style="width:100%;margin-top:8px">Convert to app label</button>
     <textarea id="fe-zpl" rows="12" hidden spellcheck="false"
       style="font-family:var(--mono);font-size:12px;margin-top:8px;white-space:pre"></textarea>
     ${fields.length ? '' : '<p class="empty">This file has no editable text fields. Use Advanced to change the ZPL.</p>'}`;
@@ -191,6 +192,19 @@ export async function renderFileEditor(container, label) {
   $('#fe-print').onclick = () => {
     if (dirty) { showToast('Save first, then print', true); return; }
     openFilePrint(label, () => navigate('#/'));
+  };
+
+  $('#fe-convert').onclick = async () => {
+    if (dirty) { showToast('Save first, then convert', true); return; }
+    if (!confirm('Turn this file into a regular app label? The file entry is replaced by the new label.')) return;
+    try {
+      const { label: created, warnings } = await api.convertFile(label.id);
+      container._leaveGuard = null;
+      if (warnings.length) showToast(warnings.join(' · '), true);
+      navigate(`#/edit/${created.id}`);
+    } catch (err) {
+      showToast(err.message, true);
+    }
   };
 
   container._leaveGuard = () => !dirty || confirm('Discard unsaved changes to this file?');

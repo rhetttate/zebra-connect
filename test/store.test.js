@@ -53,3 +53,14 @@ test('duplicate barcodes are rejected, except on the same label', () => {
   // updating the same label keeping its own barcode is fine
   store.update(a.id, { options: { showDescription: false } });
 });
+
+test('imported labels may share a real barcode, but moving to a taken one is still refused', () => {
+  const { store } = tmpStore();
+  const a = store.create(sample());
+  const b = store.create(sample(), { allowDuplicateBarcode: true });
+  assert.equal(b.fields.barcode, a.fields.barcode);
+  // re-saving b with its own (shared) barcode must work
+  store.update(b.id, { fields: { ...b.fields, name: 'Sugar' } });
+  const c = store.create(sample('123456789012'));
+  assert.throws(() => store.update(c.id, { fields: { ...c.fields, barcode: a.fields.barcode } }), /duplicate barcode/);
+});
