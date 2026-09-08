@@ -120,6 +120,9 @@ export function attachLayoutEditing(previewWrap, draft, onLayoutChange, onRemove
     });
     el.addEventListener('pointerup', (e) => {
       if (!drag) return;
+      // Dragging a box bigger opts back into fit-to-box: the layout engine's
+      // shared band cap must not keep the text small in a box you just grew.
+      if (drag.mode === 'resize' && item.extra) delete item.extra.textSize;
       drag = null;
       el.releasePointerCapture(e.pointerId);
       onLayoutChange();
