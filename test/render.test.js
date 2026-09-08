@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from '../src/render.js';
+import { renderPreview, renderPrintBitmap, rotateBitmap90CW, fontFamily } from '../src/render.js';
 import { defaultLayout } from '../src/layout.js';
+import { createCanvas } from '@napi-rs/canvas';
+import { drawLabel } from '../shared/render-core.js';
 
 const label = {
   size: '3x2',
@@ -183,4 +185,18 @@ test('wrapped extras honour textSize as a cap on the font size', async () => {
   assert.ok(cappedRows > 0, 'the capped text still paints');
   assert.ok(cappedRows < freeRows, `capped ${cappedRows} rows should be fewer than uncapped ${freeRows}`);
   assert.ok(cappedRows < 25, 'capped text is about 20px tall');
+});
+
+test('drawLabel reports the size each text element was drawn at', async () => {
+  const canvas = createCanvas(576, 406);
+  const { sizes } = await drawLabel(canvas.getContext('2d'), {
+    size: '3x2',
+    fields: { name: 'Sugar', description: 'Granulated', barcode: '' },
+    options: { showDescription: true },
+    layout: defaultLayout('3x2'),
+    extras: [{ id: 'e1', text: 'Lot 1', box: { x: 20, y: 300, w: 200, h: 40 }, rotation: 0, fit: true, textSize: 20 }],
+  }, { includeBarcode: false });
+  assert.ok(sizes.name > 20, 'name fits its 110-tall box at a large size');
+  assert.ok(sizes.description >= 12);
+  assert.equal(sizes['extra:e1'], 20, 'a capped fitted extra reports its cap');
 });
