@@ -224,3 +224,15 @@ test('barcode draws UPC-A style: tall guards, outer digits beside the symbol', a
   assert.ok(blackIn(bmp, 98 + 10 * 4, 98 + 45 * 4, 366, 394), 'digits 2-6 sit under the left half (modules 10-44 are all short bars)');
   assert.ok(!blackIn(bmp, 98 + 10 * 4, 98 + 45 * 4, 362, 365), 'a clear gap between the short bars and the digit line');
 });
+
+test('textSize on the name box caps the name', async () => {
+  const base = {
+    size: '3x2',
+    fields: { name: 'Hi', description: '', barcode: '' },
+    options: { showDescription: false },
+  };
+  const capped = await renderPrintBitmap({ ...base, layout: { ...defaultLayout('3x2'), name: { x: 20, y: 20, w: 536, h: 110, textSize: 20 } } });
+  const free = await renderPrintBitmap({ ...base, layout: defaultLayout('3x2') });
+  assert.ok(blackRowCount(capped, 20, 556, 20, 130) < 25, 'capped name is about 20px tall');
+  assert.ok(blackRowCount(free, 20, 556, 20, 130) > 60, 'uncapped name fills its box');
+});

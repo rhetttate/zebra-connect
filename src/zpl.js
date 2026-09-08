@@ -1,5 +1,3 @@
-import { barcodeGeometry } from './layout.js';
-import { validateUpcA } from './barcode.js';
 
 export function encodeGfa(bitmap) {
   const total = bitmap.data.length;
@@ -8,7 +6,7 @@ export function encodeGfa(bitmap) {
   return `^GFA,${total},${total},${bitmap.bytesPerRow},${hex.toUpperCase()}`;
 }
 
-export function buildLabelZpl({ width, height, bitmap, barcode, barcodeBox, quantity = 1, darkness = null }) {
+export function buildLabelZpl({ width, height, bitmap, quantity = 1, darkness = null }) {
   const parts = [];
   if (darkness !== null && darkness !== undefined && darkness !== '') {
     parts.push(`~SD${String(darkness).padStart(2, '0')}\n`);
@@ -16,10 +14,6 @@ export function buildLabelZpl({ width, height, bitmap, barcode, barcodeBox, quan
   parts.push('^XA\n');
   parts.push(`^PW${width}\n^LL${height}\n^LH0,0\n`);
   parts.push(`^FO0,0${encodeGfa(bitmap)}^FS\n`);
-  if (barcode && barcodeBox && validateUpcA(barcode)) {
-    const g = barcodeGeometry(barcodeBox);
-    parts.push(`^FO${g.x},${g.y}^BY${g.moduleWidth}^BUN,${g.barHeight},Y,N,Y^FD${barcode.slice(0, 11)}^FS\n`);
-  }
   parts.push(`^PQ${quantity}\n^XZ\n`);
   return parts.join('');
 }

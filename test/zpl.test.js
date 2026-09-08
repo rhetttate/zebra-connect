@@ -13,30 +13,21 @@ test('encodeGfa emits totals, bytes-per-row, and uppercase hex', () => {
   assert.equal(encodeGfa(bitmap), '^GFA,4,4,2,FF000FF0');
 });
 
-test('buildLabelZpl composes a complete hybrid job', () => {
-  const zpl = buildLabelZpl({
-    width: 576,
-    height: 406,
-    bitmap,
-    barcode: '036000291452',
-    barcodeBox: { x: 98, y: 160, w: 380, h: 220 },
-    quantity: 3,
-    darkness: 20,
-  });
-  assert.ok(zpl.startsWith('~SD20\n^XA'));
+test('buildLabelZpl composes a bitmap-only job', () => {
+  const zpl = buildLabelZpl({ width: 576, height: 406, bitmap, quantity: 3, darkness: 20 });
+  assert.ok(zpl.startsWith('~SD20
+^XA'));
   assert.ok(zpl.includes('^PW576'));
   assert.ok(zpl.includes('^LL406'));
   assert.ok(zpl.includes('^FO0,0^GFA,4,4,2,FF000FF0^FS'));
-  // geometry: moduleWidth 4, x 98, barHeight 182; 11 data digits only
-  assert.ok(zpl.includes('^FO98,160^BY4^BUN,182,Y,N,Y^FD03600029145^FS'));
+  assert.ok(!zpl.includes('^BU'), 'barcodes are drawn into the bitmap, never a native field');
   assert.ok(zpl.includes('^PQ3'));
   assert.ok(zpl.trimEnd().endsWith('^XZ'));
 });
 
-test('buildLabelZpl omits barcode field and darkness when absent', () => {
-  const zpl = buildLabelZpl({ width: 576, height: 406, bitmap, barcode: '', barcodeBox: null });
+test('buildLabelZpl omits darkness when absent and defaults quantity to 1', () => {
+  const zpl = buildLabelZpl({ width: 576, height: 406, bitmap });
   assert.ok(zpl.startsWith('^XA'));
-  assert.ok(!zpl.includes('^BU'));
   assert.ok(!zpl.includes('~SD'));
   assert.ok(zpl.includes('^PQ1'));
 });

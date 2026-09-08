@@ -107,6 +107,9 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
       validateBox(b, key);
       b.rotation = b.rotation ?? 0;
       validateRotation(b.rotation, key);
+      const textSize = Number(b.textSize);
+      if (key !== 'barcode' && Number.isFinite(textSize) && textSize >= 8 && textSize <= 400) b.textSize = Math.round(textSize);
+      else delete b.textSize;
     }
     for (const extra of label.extras) {
       validateBox(extra.box, 'extra field');
@@ -280,18 +283,14 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
   app.post('/api/print', wrap(async (req, res) => {
     const label = normalizeDraft(req.body.label ?? {});
     const quantity = Math.min(Math.max(parseInt(req.body.quantity, 10) || 1, 1), 100);
-    // The barcode stays a native ZPL field only when nothing rotates it;
-    // otherwise it is drawn into the bitmap at exact dot resolution.
-    const rotation = printRotation(label.size);
-    const nativeBarcode = rotation === 0 && (label.layout.barcode.rotation ?? 0) === 0;
-    let bitmap = await renderPrintBitmap(label, { includeBarcode: !nativeBarcode });
-    if (rotation === 90) bitmap = rotateBitmap90CW(bitmap);
+    // Everything, barcode included, is drawn into one bitmap at dot
+    // resolution, so the print is exactly what the phone previewed.
+    let bitmap = await renderPrintBitmap(label, { includeBarcode: true });
+    if (printRotation(label.size) === 90) bitmap = rotateBitmap90CW(bitmap);
     const zpl = buildLabelZpl({
       width: bitmap.width,
       height: bitmap.height,
       bitmap,
-      barcode: nativeBarcode ? label.fields.barcode : '',
-      barcodeBox: nativeBarcode ? label.layout.barcode : null,
       quantity,
       darkness: config.get().darkness,
     });

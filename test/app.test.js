@@ -80,7 +80,7 @@ test('print builds ZPL and sends it to the configured printer', async () => {
   assert.equal(res.status, 200);
   assert.equal(sent[0].ip, '10.0.0.9');
   assert.ok(sent[0].data.includes('^GFA'));
-  assert.ok(sent[0].data.includes('^BUN'));
+  assert.ok(!sent[0].data.includes('^BUN'), 'small sizes draw the barcode into the bitmap too');
   assert.ok(sent[0].data.includes('^PQ2'));
   close();
 });
@@ -444,5 +444,23 @@ test('labels keep a sane textSize on extras and drop nonsense', async () => {
   assert.equal('textSize' in created.extras[1], false);
   assert.equal('textSize' in created.extras[2], false);
   assert.equal(created.extras[3].textSize, 28);
+  close();
+});
+
+test('labels keep a textSize on the name and description boxes', async () => {
+  const { base, close } = await startApp();
+  const layout = {
+    name: { x: 20, y: 20, w: 536, h: 110, textSize: 60.4 },
+    description: { x: 20, y: 140, w: 536, h: 80, textSize: 'big' },
+    barcode: { x: 98, y: 225, w: 380, h: 175, textSize: 30 },
+  };
+  const created = await (await fetch(`${base}/api/labels`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x2', fields: { name: 'Flour' }, layout }),
+  })).json();
+  assert.equal(created.layout.name.textSize, 60);
+  assert.equal('textSize' in created.layout.description, false);
+  assert.equal('textSize' in created.layout.barcode, false);
   close();
 });
