@@ -4,6 +4,10 @@ import { icon } from './icons.js';
 
 const DOT_SIZES = { '3x5': [1015, 576], '3x2': [576, 406], '2x1.25': [406, 253] };
 const MIN_DOTS = 60;
+const ROLE_TAGS = {
+  lot: 'LOT', best_by: 'BEST BY', packed_on: 'PACKED', allergens: 'ALLERGENS',
+  net: 'NET', note: 'NOTE', ingredients: 'INGREDIENTS',
+};
 
 function newExtraId() {
   return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -20,7 +24,8 @@ function elementList(draft) {
   }
   items.push({ key: 'barcode', tag: 'BARCODE', box: draft.layout.barcode, removable: false });
   for (const extra of draft.extras ?? []) {
-    items.push({ key: `extra:${extra.id}`, tag: extra.kind === 'image' ? 'IMAGE' : 'FIELD', box: extra.box, extra, removable: true });
+    const tag = extra.kind === 'image' ? 'IMAGE' : (ROLE_TAGS[extra.role] ?? 'FIELD');
+    items.push({ key: `extra:${extra.id}`, tag, box: extra.box, extra, removable: true });
   }
   return items;
 }
@@ -225,6 +230,8 @@ export function renderEditor(container, labelOrDraft) {
         row.innerHTML = `<input autocomplete="off"><button class="danger" title="Remove field">${icon('trash')}</button>`;
         const input = row.querySelector('input');
         input.value = extra.text;
+        if (ROLE_TAGS[extra.role]) input.placeholder = ROLE_TAGS[extra.role].toLowerCase();
+        if (extra.role === 'ingredients') { input.title = 'Ingredients'; }
         input.oninput = () => { extra.text = input.value; refreshPreview(); };
       }
       row.querySelector('button').onclick = () => removeExtra(extra);
@@ -235,7 +242,7 @@ export function renderEditor(container, labelOrDraft) {
   // The server fills defaults for options/layout/extras; fetch its normalized
   // view once so the draft has concrete boxes for the overlay.
   async function ensureNormalized() {
-    if (!draft.layout || !draft.options || !draft.fields.barcode) {
+    if (!draft.id || !draft.layout || !draft.options || !draft.fields.barcode) {
       const normalized = draft.id ? draft : await api.createLabel(draft);
       if (!draft.id) {
         draft.id = normalized.id;
