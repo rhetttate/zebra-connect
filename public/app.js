@@ -2,7 +2,8 @@ import { api } from './api.js';
 import { icon } from './icons.js';
 import { renderEditor } from './editor.js';
 import { renderSettings } from './settings.js';
-import { renderStation } from './station.js';
+import { renderStation, initStation, onStationChange, stationState } from './station.js';
+import { renderFileEditor } from './file-editor.js';
 
 export const SIZE_LABELS = {
   '3x5': '5 × 3',
@@ -14,6 +15,7 @@ const view = document.getElementById('view');
 const title = document.getElementById('title');
 
 document.getElementById('nav').innerHTML = `
+  <button id="station-chip" class="navlink chip" title="Print station — tap for details" hidden></button>
   <button id="loaded-chip" class="navlink chip" title="Loaded labels — tap to change or calibrate"></button>
   <a href="#/" title="Labels">${icon('labels')}</a>
   <a href="#/new" title="New label">${icon('plus')}</a>
@@ -125,6 +127,28 @@ document.getElementById('nav-cal').onclick = openCalibrate;
 document.getElementById('loaded-chip').onclick = openCalibrate;
 refreshLoadedChip();
 
+// The station chip only appears on a device that has connected to the
+// printer (the tablet), and follows the link wherever the user navigates.
+const STATION_CHIP = {
+  connected: ['PRINTER ✓', 'ok'],
+  connecting: ['PRINTER …', ''],
+  reconnecting: ['PRINTER …', ''],
+  disconnected: ['PRINTER ✗', 'bad'],
+};
+function refreshStationChip(state) {
+  const chip = document.getElementById('station-chip');
+  const entry = STATION_CHIP[state.status];
+  chip.hidden = !(entry && (state.remembered || state.status !== 'off'));
+  if (!entry) return;
+  chip.textContent = entry[0];
+  chip.classList.toggle('ok', entry[1] === 'ok');
+  chip.classList.toggle('bad', entry[1] === 'bad');
+}
+document.getElementById('station-chip').onclick = () => navigate('#/station');
+onStationChange(refreshStationChip);
+refreshStationChip(stationState());
+initStation();
+
 function setTitle(text) {
   if (text) {
     title.textContent = text;
@@ -162,26 +186,117 @@ async function renderLibrary() {
       if (q && !hay.includes(q)) continue;
       const card = document.createElement('div');
       card.className = 'card';
+      const isFile = label.kind === 'prn';
       card.innerHTML = `
-        <img alt="" loading="lazy">
+        ${isFile ? `<div class="file-thumb">${icon('file')}</div>` : '<img alt="" loading="lazy">'}
         <div class="meta">
           <div class="name"></div>
           <div class="sub"></div>
         </div>`;
       card.querySelector('.name').textContent = label.fields.name || '(unnamed)';
-      card.querySelector('.sub').textContent =
-        `${SIZE_LABELS[label.size] ?? label.size}"  ·  ${label.fields.barcode}`;
-      api.previewBlob(label).then((blob) => {
-        const img = card.querySelector('img');
-        img.onload = () => URL.revokeObjectURL(img.src);
-        img.src = URL.createObjectURL(blob);
-      }).catch(() => {});
-      card.onclick = () => navigate(`#/edit/${label.id}`);
+      if (isFile) {
+        card.querySelector('.sub').textContent =
+          `${label.size ? `${SIZE_LABELS[label.size] ?? label.size}"` : 'size unknown'}  ·  printer file`;
+        attachTapOrSwipe(card,
+          () => openFilePrint(label, () => {
+            labels.splice(labels.indexOf(label), 1);
+            draw(view.querySelector('#search').value);
+          }),
+          () => navigate(`#/file/${label.id}`));
+      } else {
+        card.querySelector('.sub').textContent =
+          `${SIZE_LABELS[label.size] ?? label.size}"  ·  ${label.fields.barcode}`;
+        api.previewBlob(label).then((blob) => {
+          const img = card.querySelector('img');
+          img.onload = () => URL.revokeObjectURL(img.src);
+          img.src = URL.createObjectURL(blob);
+        }).catch(() => {});
+        card.onclick = () => navigate(`#/edit/${label.id}`);
+      }
       cards.appendChild(card);
     }
   }
   draw();
   view.querySelector('#search').oninput = (e) => draw(e.target.value);
+}
+
+// Tap = primary action; a mostly-horizontal swipe of 40px+ = secondary.
+function attachTapOrSwipe(el, onTap, onSwipe) {
+  let start = null;
+  el.onpointerdown = (e) => { start = { x: e.clientX, y: e.clientY, id: e.pointerId }; };
+  el.onpointerup = (e) => {
+    if (!start || e.pointerId !== start.id) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    start = null;
+    if (Math.abs(dx) >= 40 && Math.abs(dx) > Math.abs(dy) * 1.5) onSwipe();
+    else if (Math.abs(dx) < 8 && Math.abs(dy) < 8) onTap();
+  };
+  el.onpointercancel = () => { start = null; };
+}
+
+// Print sheet for a stored printer file: quantity, print, edit, delete.
+export function openFilePrint(label, onDeleted) {
+  document.querySelector('.modal-overlay')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Print printer file">
+      <h2>Printer file</h2>
+      <p class="file-name"></p>
+      <p class="hint"></p>
+      <div class="row">
+        <label class="tight" for="file-qty">Quantity</label>
+        <input id="file-qty" type="number" min="1" max="100" value="1" inputmode="numeric">
+      </div>
+      <div class="row">
+        <button id="file-edit" class="quiet">Edit</button>
+        <button id="file-delete" class="quiet">Delete</button>
+        <button id="file-close" class="quiet">Close</button>
+        <button id="file-print" class="accent">Print</button>
+      </div>
+    </div>`;
+  overlay.querySelector('.file-name').textContent = label.fields.name;
+  overlay.querySelector('.hint').textContent = label.size
+    ? `${SIZE_LABELS[label.size] ?? label.size}" label, printed exactly as the file was designed.`
+    : 'This file does not say what size it is, so it prints on whatever is loaded.';
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.onclick = (e) => { if (e.target === overlay) close(); };
+  overlay.querySelector('#file-close').onclick = close;
+  overlay.querySelector('#file-edit').onclick = () => { close(); navigate(`#/file/${label.id}`); };
+  overlay.querySelector('#file-print').onclick = async () => {
+    const btn = overlay.querySelector('#file-print');
+    const quantity = Math.min(Math.max(parseInt(overlay.querySelector('#file-qty').value, 10) || 1, 1), 100);
+    btn.disabled = true;
+    try {
+      if (label.size) {
+        const { loadedSize } = await api.getSettings();
+        if (loadedSize && loadedSize !== label.size && !confirm(
+          `This is a ${SIZE_LABELS[label.size]}" label but ${SIZE_LABELS[loadedSize]}" stock is loaded. Print anyway?`)) {
+          btn.disabled = false;
+          return;
+        }
+      }
+      const result = await api.printFileLabel(label.id, quantity);
+      close();
+      showToast(result.queued ? 'Queued — printing at the station' : 'Sent to printer');
+    } catch (err) {
+      showToast(err.message, true);
+      btn.disabled = false;
+    }
+  };
+  overlay.querySelector('#file-delete').onclick = async () => {
+    if (!confirm(`Delete "${label.fields.name}" from the library?`)) return;
+    try {
+      await api.deleteLabel(label.id);
+      close();
+      onDeleted?.();
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  };
 }
 
 function renderNew() {
@@ -205,10 +320,33 @@ function renderNew() {
     <p class="hint">Snap the product or its packaging. The name and description fill in for you.</p>
     <p class="eyebrow">Printer file</p>
     <div class="row">
-      <button id="print-prn" class="quiet">${icon('file')} Print a .prn file</button>
+      <button id="add-prn" class="quiet">${icon('file')} Add a .prn to the library</button>
+      <button id="print-prn" class="quiet">${icon('file')} Print a .prn once</button>
     </div>
+    <p class="hint">Files in the library print from any phone; "print once" sends a file without keeping it.</p>
     <input id="photo-input" type="file" accept="image/*" capture="environment" hidden>
-    <input id="prn-input" type="file" accept=".prn" hidden>`;
+    <input id="prn-input" type="file" accept=".prn" hidden>
+    <input id="add-prn-input" type="file" accept=".prn" multiple hidden>`;
+
+  const addInput = view.querySelector('#add-prn-input');
+  view.querySelector('#add-prn').onclick = () => { addInput.value = ''; addInput.click(); };
+  addInput.onchange = async () => {
+    const files = [...addInput.files];
+    if (!files.length) return;
+    let added = 0;
+    for (const file of files) {
+      try {
+        await api.addPrn(file);
+        added++;
+      } catch (err) {
+        showToast(`${file.name}: ${err.message}`, true);
+      }
+    }
+    if (added) {
+      showToast(added === 1 ? `Added ${files[0].name} to the library` : `Added ${added} files to the library`);
+      navigate('#/');
+    }
+  };
 
   for (const btn of view.querySelectorAll('[data-size]')) {
     btn.onclick = () => renderEditor(view, { size: btn.dataset.size });
@@ -246,8 +384,15 @@ function renderNew() {
 
 async function route() {
   const hash = location.hash || '#/';
+  // A screen with unsaved work can veto navigation away from itself.
+  if (view._leaveGuard && !view._leaveGuard()) { history.back(); return; }
+  view._leaveGuard = null;
   try {
     if (hash === '#/' || hash === '') await renderLibrary();
+    else if (hash.startsWith('#/file/')) {
+      setTitle('Edit printer file');
+      await renderFileEditor(view, await api.getLabel(hash.slice(7)));
+    }
     else if (hash === '#/new') renderNew();
     else if (hash.startsWith('#/edit/')) {
       setTitle('Edit label');

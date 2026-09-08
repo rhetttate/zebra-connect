@@ -11,10 +11,23 @@ import { buildLabelZpl, buildTestZpl, buildCalibrationZpl, setZplModeCommand } f
 import * as printerLib from './printer.js';
 import { extractLabelFields, makeClient } from './extract.js';
 import { createQueue } from './queue.js';
+import { parsePrn, withQuantity } from './printer-file.js';
+import { parseFields, applyFields, labelInches } from './zpl-fields.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
+// Labelary draws ZPL at 8 dots/mm (203 dpi): one PNG pixel per printer dot.
+async function renderWithLabelary({ zpl, w, h }) {
+  const res = await fetch(`http://api.labelary.com/v1/printers/8dpmm/labels/${w}x${h}/0/`, {
+    method: 'POST',
+    headers: { accept: 'image/png', 'content-type': 'application/x-www-form-urlencoded' },
+    body: zpl,
+  });
+  if (!res.ok) throw new Error(`Labelary ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+export function createApp({ dataDir, printerOverrides = {}, extractOverride, zplRenderer = renderWithLabelary }) {
   const store = createStore(path.join(dataDir, 'labels.json'));
   const config = createConfig(path.join(dataDir, 'config.json'));
   const printer = { ...printerLib, ...printerOverrides };
@@ -114,6 +127,64 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride }) {
       res.json(store.create(label));
     } catch (err) {
       throw Object.assign(err, { status: 400 });
+    }
+  }));
+
+  // A finished printer file becomes a "file" label: printed as-is, never edited.
+  app.post('/api/labels/prn', express.raw({ type: () => true, limit: '20mb' }), wrap((req, res) => {
+    const { name, size, zpl } = parsePrn(req.body, req.query.name);
+    res.json(store.create({ kind: 'prn', size, fields: { name, barcode: '' }, zpl }));
+  }));
+
+  app.post('/api/labels/:id/print', wrap(async (req, res) => {
+    const label = store.get(req.params.id);
+    if (!label) return res.status(404).json({ error: 'not found' });
+    if (label.kind !== 'prn') {
+      throw Object.assign(new Error('only printer-file labels print by id'), { status: 400 });
+    }
+    res.json(await dispatchToPrinter(withQuantity(label.zpl, req.body?.quantity), label.fields.name));
+  }));
+
+  function requireFileLabel(id) {
+    const label = store.get(id);
+    if (!label) throw Object.assign(new Error('not found'), { status: 404 });
+    if (label.kind !== 'prn') throw Object.assign(new Error('not a printer-file label'), { status: 400 });
+    return label;
+  }
+
+  const cleanName = (body, fallback) =>
+    (typeof body?.name === 'string' && body.name.trim() ? body.name.trim() : fallback);
+
+  app.get('/api/labels/:id/fields', wrap((req, res) => {
+    const label = requireFileLabel(req.params.id);
+    res.json({ fields: parseFields(label.zpl), inches: labelInches(label.zpl) });
+  }));
+
+  app.put('/api/labels/:id/fields', wrap((req, res) => {
+    const label = requireFileLabel(req.params.id);
+    const zpl = applyFields(label.zpl, Array.isArray(req.body?.fields) ? req.body.fields : []);
+    res.json(store.update(label.id, { zpl, fields: { ...label.fields, name: cleanName(req.body, label.fields.name) } }));
+  }));
+
+  app.put('/api/labels/:id/zpl', wrap((req, res) => {
+    const label = requireFileLabel(req.params.id);
+    const { zpl, size } = parsePrn(String(req.body?.zpl ?? ''), label.fields.name);
+    res.json(store.update(label.id, { zpl, size, fields: { ...label.fields, name: cleanName(req.body, label.fields.name) } }));
+  }));
+
+  // Preview of a raw ZPL job, sized from the file itself or the loaded roll.
+  app.post('/api/preview-zpl', wrap(async (req, res) => {
+    const zpl = String(req.body?.zpl ?? '');
+    let inches = labelInches(zpl);
+    if (!inches) {
+      const dims = SIZES[config.get().loadedSize] ?? SIZES['3x5'];
+      const inch = (d) => Math.round((d / 203) * 100) / 100;
+      inches = { w: inch(Math.min(dims.width, dims.height)), h: inch(Math.max(dims.width, dims.height)) };
+    }
+    try {
+      res.type('image/png').send(await zplRenderer({ zpl, w: inches.w, h: inches.h }));
+    } catch (err) {
+      throw Object.assign(new Error(`preview unavailable: ${err.message}`), { status: 502 });
     }
   }));
 

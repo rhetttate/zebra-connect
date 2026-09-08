@@ -23,6 +23,14 @@ export const api = {
   printRaw: async (file) => (await call('/api/print-raw', {
     method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file,
   })).json(),
+  addPrn: async (file) => (await call(`/api/labels/prn?name=${encodeURIComponent(file.name)}`, {
+    method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file,
+  })).json(),
+  printFileLabel: async (id, quantity) => (await call(`/api/labels/${id}/print`, json('POST', { quantity }))).json(),
+  getFileFields: async (id) => (await call(`/api/labels/${id}/fields`)).json(),
+  saveFileFields: async (id, fields, name) => (await call(`/api/labels/${id}/fields`, json('PUT', { fields, name }))).json(),
+  saveFileZpl: async (id, zpl, name) => (await call(`/api/labels/${id}/zpl`, json('PUT', { zpl, name }))).json(),
+  previewZplBlob: async (zpl) => (await call('/api/preview-zpl', json('POST', { zpl }))).blob(),
   extract: async (file) => (await call('/api/extract', {
     method: 'POST', headers: { 'content-type': file.type }, body: file,
   })).json(),

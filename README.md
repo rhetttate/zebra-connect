@@ -57,7 +57,14 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
   also be removed there).
 - **Add field** puts extra free-text fields on the label — lot numbers,
   dates, allergens. Layouts and extra fields save per label.
-- **Print a .prn file** sends any prepared printer file byte-for-byte.
+- **Add a .prn to the library** keeps a finished printer file (ZebraDesigner
+  export) as a "printer file" entry: it shows in the list with its size, and
+  tapping it opens a quantity/print sheet instead of the editor. Swipe the
+  card (or tap it and choose **Edit**) to change its text, barcode, field
+  position and text size on a live preview; the preview is drawn by the
+  Labelary web service, so it needs internet, while printing does not.
+  **Print a .prn once** sends a file byte-for-byte without keeping it. To
+  load a whole folder at once: `node tools/import-prn.mjs <folder> [server-url]`.
 
 ## Bluetooth print station (printer not on WiFi)
 

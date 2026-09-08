@@ -115,6 +115,13 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
   width: 76px; max-height: 76px; object-fit: contain;
   border: 1px solid var(--line); border-radius: 4px; background: #fff;
 }
+.card .file-thumb {
+  width: 76px; height: 56px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed var(--line); border-radius: 4px; color: var(--muted);
+}
+.card .file-thumb .icon { width: 26px; height: 26px; }
+.modal .file-name { font-weight: 650; font-size: 16px; margin-top: 10px; }
 .card .meta { flex: 1; min-width: 0; }
 .card .meta .name {
   font-weight: 650; font-size: 16px;
@@ -249,3 +256,16 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
 @media (prefers-reduced-motion: no-preference) {
   button { transition: opacity 0.12s ease; }
 }
+
+/* print-station chip in the header (only on a device that has connected) */
+header nav #station-chip.ok { color: #3fae6a; border-color: #3fae6a; }
+header nav #station-chip.bad { color: #d9534f; border-color: #d9534f; }
+
+/* ---------- printer-file editor ---------- */
+.card { touch-action: pan-y; }
+#fe-preview-wrap { position: relative; margin: 0 auto; background: #fff; border-radius: 2px; touch-action: none; min-height: 60px; }
+#fe-preview-wrap img { display: block; width: 100%; border-radius: 2px; }
+#fe-boxes { position: absolute; inset: 0; }
+.fe-box { position: absolute; border: 1px dashed rgba(25, 26, 28, 0.35); cursor: move; }
+.fe-box.selected { border: 2px solid var(--accent); }
+.fe-box.rotated { cursor: default; border-style: dotted; }
