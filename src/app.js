@@ -9,7 +9,8 @@ import { generateUpcA, validateUpcA } from './barcode.js';
 import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from './render.js';
 import { buildLabelZpl, buildTestZpl, buildCalibrationZpl, setZplModeCommand } from './zpl.js';
 import * as printerLib from './printer.js';
-import { extractLabelFields, makeClient } from './extract.js';
+import { makeLabelContent, makeClient, houseExamples } from './ai-label.js';
+import { layoutDraft } from './ai-layout.js';
 import { createQueue } from './queue.js';
 import { parsePrn, withQuantity } from './printer-file.js';
 import { parseFields, applyFields, labelInches } from './zpl-fields.js';
@@ -28,7 +29,7 @@ async function renderWithLabelary({ zpl, w, h }) {
   return Buffer.from(await res.arrayBuffer());
 }
 
-export function createApp({ dataDir, printerOverrides = {}, extractOverride, zplRenderer = renderWithLabelary }) {
+export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zplRenderer = renderWithLabelary }) {
   const store = createStore(path.join(dataDir, 'labels.json'));
   const config = createConfig(path.join(dataDir, 'config.json'));
   const printer = { ...printerLib, ...printerOverrides };
@@ -36,7 +37,10 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
   app.locals.store = store;
   app.locals.config = config;
 
-  app.use(express.json({ limit: '1mb' }));
+  // The AI label maker posts a base64 photo, far over 1 MB; it parses its own body.
+  const AI_LABEL_PATH = '/api/ai-label';
+  const jsonBody = express.json({ limit: '1mb' });
+  app.use((req, res, next) => (req.path === AI_LABEL_PATH ? next() : jsonBody(req, res, next)));
   app.use(express.static(path.join(here, '..', 'public')));
 
   const ROTATIONS = [0, 90, 180, 270];
@@ -297,22 +301,34 @@ export function createApp({ dataDir, printerOverrides = {}, extractOverride, zpl
   }));
 
   const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
-  app.post('/api/extract', express.raw({ type: IMAGE_TYPES, limit: '20mb' }), wrap(async (req, res) => {
+
+  function requireApiKey() {
     const apiKey = config.get().apiKey || process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) {
-      throw Object.assign(new Error('no API key configured — add one in Settings'), { status: 400 });
+    if (!apiKey) throw Object.assign(new Error('no API key configured — add one in Settings'), { status: 400 });
+  }
+
+  app.post(AI_LABEL_PATH, express.json({ limit: '30mb' }), wrap(async (req, res) => {
+    requireApiKey();
+    const { size, image } = req.body ?? {};
+    const text = String(req.body?.text ?? '').trim();
+    if (!SIZES[size]) throw Object.assign(new Error('unknown size'), { status: 400 });
+    if (!text && !image) {
+      throw Object.assign(new Error('describe the product or add a photo first'), { status: 400 });
     }
-    const mediaType = req.headers['content-type'];
-    if (!Buffer.isBuffer(req.body) || !IMAGE_TYPES.includes(mediaType)) {
+    if (image && (!IMAGE_TYPES.includes(image.mediaType) || typeof image.data !== 'string' || !image.data)) {
       throw Object.assign(new Error('unsupported image type — use a JPEG or PNG photo'), { status: 415 });
     }
-    const extract = extractOverride
-      ?? ((buf, type) => extractLabelFields(buf, type, makeClient(config.get().apiKey)));
+    const make = aiLabelOverride
+      ?? ((input) => makeLabelContent(input, makeClient(config.get().apiKey), { examples: houseExamples(store.list()) }));
+    let content;
     try {
-      res.json(await extract(req.body, mediaType));
+      content = await make({ size, text, image: image ?? null });
     } catch (err) {
       throw Object.assign(err, { status: 502 });
     }
+    const draft = normalizeDraft(layoutDraft({ size, content }));
+    draft.fields.barcode = generateUpcA((c) => store.barcodeExists(c));
+    res.json({ ...draft, warnings: content.warning ? [content.warning] : [] });
   }));
 
   // --- settings ---

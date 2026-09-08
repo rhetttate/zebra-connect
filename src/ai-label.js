@@ -135,3 +135,11 @@ export async function makeLabelContent({ size, text, image }, client, { today = 
   }
   return parseContent(parsed);
 }
+
+// The most recent hand-written labels show the model the store's naming style.
+export function houseExamples(labels, limit = 5) {
+  return labels
+    .filter((l) => l.kind !== 'prn' && l.fields?.name && l.fields?.description)
+    .slice(0, limit)
+    .map((l) => ({ name: l.fields.name, description: l.fields.description }));
+}

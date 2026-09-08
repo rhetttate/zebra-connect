@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPrompt, parseContent, makeLabelContent, CONTENT_SCHEMA, MODEL } from '../src/ai-label.js';
+import { buildPrompt, parseContent, makeLabelContent, houseExamples, CONTENT_SCHEMA, MODEL } from '../src/ai-label.js';
 
 const today = new Date(2026, 8, 8); // Sep 8, 2026 (local time)
 
@@ -108,4 +108,18 @@ test('makeLabelContent throws on refusal and on garbage', async () => {
       stubClient({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'no json here' }] }), { today }),
     /could not parse/,
   );
+});
+
+test('houseExamples picks recent app labels with a name and description', () => {
+  const labels = [
+    { kind: 'prn', fields: { name: 'File', description: 'x' } },
+    { fields: { name: 'Salt', description: '' } },
+    { fields: { name: 'Olive Oil', description: 'Extra virgin' } },
+    { fields: { name: 'Flour', description: 'AP' } },
+  ];
+  assert.deepEqual(houseExamples(labels), [
+    { name: 'Olive Oil', description: 'Extra virgin' },
+    { name: 'Flour', description: 'AP' },
+  ]);
+  assert.deepEqual(houseExamples(labels, 1), [{ name: 'Olive Oil', description: 'Extra virgin' }]);
 });

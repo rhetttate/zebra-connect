@@ -160,55 +160,78 @@ test('validation errors return JSON bodies and DELETE 404s on unknown ids', asyn
   close();
 });
 
-test('extract requires an API key, then returns extracted fields', async () => {
-  const { base, close } = await startApp();
-  const noKey = await fetch(`${base}/api/extract`, {
-    method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: Buffer.from('img'),
-  });
-  assert.equal(noKey.status, 400);
-  close();
-
-  const dataDir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-app-'));
-  const app2 = createApp({
-    dataDir: dataDir2,
-    extractOverride: async () => ({ name: 'Beans', description: 'Black beans' }),
-  });
-  await new Promise((resolve) => {
-    const server = app2.listen(0, '127.0.0.1', async () => {
-      const base2 = `http://127.0.0.1:${server.address().port}`;
-      await fetch(`${base2}/api/settings`, {
-        method: 'PUT', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ apiKey: 'sk-test' }),
-      });
-      const out = await (await fetch(`${base2}/api/extract`, {
-        method: 'POST', headers: { 'content-type': 'image/jpeg' }, body: Buffer.from('img'),
-      })).json();
-      assert.equal(out.name, 'Beans');
-      server.close();
-      resolve();
-    });
-  });
-});
-
-test('extract rejects unsupported image types with 415', async () => {
+function startAiApp(aiLabelOverride) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zc-app-'));
-  const app = createApp({ dataDir, extractOverride: async () => ({ name: 'x', description: '' }) });
-  await new Promise((resolve) => {
+  const app = createApp({ dataDir, aiLabelOverride });
+  return new Promise((resolve) => {
     const server = app.listen(0, '127.0.0.1', async () => {
       const base = `http://127.0.0.1:${server.address().port}`;
       await fetch(`${base}/api/settings`, {
         method: 'PUT', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ apiKey: 'sk-test' }),
       });
-      const res = await fetch(`${base}/api/extract`, {
-        method: 'POST', headers: { 'content-type': 'image/heic' }, body: Buffer.from('img'),
-      });
-      assert.equal(res.status, 415);
-      assert.match((await res.json()).error, /unsupported image type/);
-      server.close();
-      resolve();
+      resolve({ base, close: () => server.close() });
     });
   });
+}
+
+const postJson = (url, body) => fetch(url, {
+  method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
+});
+
+test('ai-label requires an API key', async () => {
+  const { base, close } = await startApp();
+  const res = await postJson(`${base}/api/ai-label`, { size: '3x5', text: 'flour' });
+  assert.equal(res.status, 400);
+  assert.match((await res.json()).error, /API key/);
+  close();
+});
+
+test('ai-label validates its input', async () => {
+  const { base, close } = await startAiApp(async () => ({ name: 'x', description: '', ingredients: '', extras: [], warning: '' }));
+  assert.equal((await postJson(`${base}/api/ai-label`, { size: '9x9', text: 'flour' })).status, 400);
+  const empty = await postJson(`${base}/api/ai-label`, { size: '3x5', text: '   ' });
+  assert.equal(empty.status, 400);
+  assert.match((await empty.json()).error, /describe|photo/i);
+  const heic = await postJson(`${base}/api/ai-label`, { size: '3x5', image: { mediaType: 'image/heic', data: 'AAAA' } });
+  assert.equal(heic.status, 415);
+  close();
+});
+
+test('ai-label returns a normalized draft with a fresh barcode, roles and warnings', async () => {
+  const seen = [];
+  const { base, close } = await startAiApp(async (input) => {
+    seen.push(input);
+    return {
+      name: 'Almond Flour', description: 'Blanched.', ingredients: 'Blanched almonds.',
+      extras: [{ role: 'lot', text: 'Lot 42' }], warning: 'Photo was blurry',
+    };
+  });
+  const res = await postJson(`${base}/api/ai-label`, {
+    size: '3x5', text: 'almond flour', image: { mediaType: 'image/jpeg', data: 'AAAA' },
+  });
+  assert.equal(res.status, 200);
+  const draft = await res.json();
+  assert.equal(draft.id, undefined, 'not saved yet');
+  assert.equal(draft.size, '3x5');
+  assert.equal(draft.fields.name, 'Almond Flour');
+  assert.match(draft.fields.barcode, /^\d{12}$/);
+  assert.equal(draft.options.showDescription, true);
+  assert.equal(draft.layout.name.rotation, 0);
+  assert.deepEqual(draft.extras.map((e) => e.role), ['lot', 'ingredients']);
+  assert.deepEqual(draft.warnings, ['Photo was blurry']);
+  assert.deepEqual(seen[0], { size: '3x5', text: 'almond flour', image: { mediaType: 'image/jpeg', data: 'AAAA' } });
+  close();
+});
+
+test('ai-label reports model failures as 502 and accepts a large photo body', async () => {
+  const { base, close } = await startAiApp(async () => { throw new Error('label maker refused this input'); });
+  const res = await postJson(`${base}/api/ai-label`, {
+    size: '3x2', text: 'x', image: { mediaType: 'image/jpeg', data: 'A'.repeat(2_000_000) },
+  });
+  assert.equal(res.status, 502);
+  assert.match((await res.json()).error, /refused/);
+  close();
 });
 
 test('labels normalize extras and reject invalid rotations', async () => {
