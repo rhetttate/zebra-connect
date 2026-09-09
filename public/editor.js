@@ -7,6 +7,7 @@ import { attachOverlay } from './overlay.js';
 import { renderToolbar, sizeTarget } from './toolbar.js';
 import { alignBox, frameFor } from '/shared/snap.js';
 import { createHistory } from './history.js';
+import { createFullscreen } from './fullscreen.js';
 
 const ROLE_TAGS = {
   lot: 'LOT', best_by: 'BEST BY', packed_on: 'PACKED', allergens: 'ALLERGENS',
@@ -34,6 +35,15 @@ export function renderEditor(container, labelOrDraft) {
         <span class="deck-actions">
           <button id="undo" class="deck-btn" title="Undo" disabled>${icon('undo')}</button>
           <button id="redo" class="deck-btn" title="Redo" disabled>${icon('redo')}</button>
+          <button id="fs-enter" class="deck-btn" title="Edit full screen">${icon('expand')}</button>
+        </span>
+      </div>
+      <div class="fs-bar">
+        <button id="fs-done" class="tb-text">Done</button>
+        <span class="fs-title">${SIZE_LABELS[draft.size] ?? draft.size} in</span>
+        <span class="fs-actions">
+          <button id="fs-undo" class="deck-btn" title="Undo" disabled>${icon('undo')}</button>
+          <button id="fs-redo" class="deck-btn" title="Redo" disabled>${icon('redo')}</button>
         </span>
       </div>
       <div id="preview-wrap"><canvas id="preview"></canvas></div>
@@ -89,8 +99,8 @@ export function renderEditor(container, labelOrDraft) {
     refreshPreview();
   }, { onChange: updateHistoryButtons });
   function updateHistoryButtons() {
-    container.querySelector('#undo').disabled = !history.canUndo;
-    container.querySelector('#redo').disabled = !history.canRedo;
+    for (const id of ['#undo', '#fs-undo']) container.querySelector(id).disabled = !history.canUndo;
+    for (const id of ['#redo', '#fs-redo']) container.querySelector(id).disabled = !history.canRedo;
   }
   // A completed change: one undo step, then a redraw.
   function commit() {
@@ -108,7 +118,10 @@ export function renderEditor(container, labelOrDraft) {
     onChange: refreshPreview,
     onCommit: commit,
     onSelect: (item, toolbarEl) => { if (item) renderToolbar(toolbarEl, item, toolbarActions(item)); },
-    isRotated: () => false,
+    isRotated: () => fullscreen.isRotated(),
+  });
+  const fullscreen = createFullscreen(els.deck, els.wrap, () => draft.size, {
+    onChange: () => overlay.refresh(),
   });
 
   function toolbarActions(item) {
@@ -215,6 +228,10 @@ export function renderEditor(container, labelOrDraft) {
 
   container.querySelector('#undo').onclick = () => history.undo();
   container.querySelector('#redo').onclick = () => history.redo();
+  container.querySelector('#fs-undo').onclick = () => history.undo();
+  container.querySelector('#fs-redo').onclick = () => history.redo();
+  container.querySelector('#fs-enter').onclick = () => fullscreen.enter();
+  container.querySelector('#fs-done').onclick = () => fullscreen.exit();
   els.name.oninput = () => { draft.fields.name = els.name.value; refreshPreview(); textCommit(); };
   els.desc.oninput = () => { draft.fields.description = els.desc.value; refreshPreview(); textCommit(); };
   els.barcode.oninput = () => { draft.fields.barcode = els.barcode.value; refreshPreview(); textCommit(); };

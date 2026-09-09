@@ -299,3 +299,23 @@ header nav #station-chip.bad { color: #d9534f; border-color: #d9534f; }
 .deck-btn { width: 30px; height: 26px; padding: 0; background: transparent; border: 0; color: #c9cbd3; border-radius: 6px; }
 .deck-btn:disabled { opacity: 0.35; }
 .deck-btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.12); }
+
+/* ---------- full-screen editing ---------- */
+.fs-bar { display: none; }
+.deck.fs {
+  position: fixed; inset: 0; z-index: 40;
+  margin: 0; border-radius: 0; padding: 0;
+  background: var(--deck);
+  display: flex; align-items: center; justify-content: center;
+}
+.deck.fs .deck-bar { display: none; }
+.deck.fs .fs-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 56px;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 12px; z-index: 41;
+  color: #c9cbd3; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase;
+}
+.deck.fs .fs-bar .tb-text { background: rgba(255, 255, 255, 0.12); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-weight: 600; font-family: var(--sans); text-transform: none; letter-spacing: 0; }
+.fs-actions { display: flex; gap: 4px; }
+.deck.fs #preview-wrap { margin: 0; flex: none; transform-origin: center center; }
+body.fs-open { overflow: hidden; }
