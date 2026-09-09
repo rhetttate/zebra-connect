@@ -49,12 +49,18 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
 - Sizes: 5×3 (designed landscape, rotated automatically for the
   3-inch print head), 3×2, and 2×1.25 inches (203 dpi, max print
   width 576 dots).
-- Barcodes are unique random UPC-A codes. An unrotated barcode prints
-  as a native printer barcode; rotated ones are drawn at exact
-  dot-module resolution — both scan reliably.
-- Tap a field on the preview to select it: drag to move, corner handle
-  to resize, and the toolbar rotates it in 90° steps (extra fields can
-  also be removed there).
+- Barcodes are unique random UPC-A codes, drawn at exact dot resolution in
+  real UPC-A style (tall guard bars, digits beside the symbol). The preview
+  is drawn on your phone with the same code and font the printer uses, so
+  what you see is what prints.
+- Tap a field on the preview to select it: drag to move (edges and centres
+  snap to the margins and to other fields, with a guide line when they do),
+  drag the corner handle to resize, and use the toolbar to rotate, align
+  left/centre/right/top/middle/bottom, and set the text size — **Auto** fills
+  the box, **−/+** step a fixed size, **All** gives every extra field the
+  same size. Undo and Redo sit above the preview. The expand button opens
+  the label full screen, turned sideways to use the phone's long axis; tap
+  Done to come back.
 - **Add field** puts extra free-text fields on the label — lot numbers,
   dates, allergens. Layouts and extra fields save per label.
 - **Make it for me** (on the New label screen) builds a whole label from a
