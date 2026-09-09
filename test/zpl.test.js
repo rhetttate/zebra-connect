@@ -15,8 +15,7 @@ test('encodeGfa emits totals, bytes-per-row, and uppercase hex', () => {
 
 test('buildLabelZpl composes a bitmap-only job', () => {
   const zpl = buildLabelZpl({ width: 576, height: 406, bitmap, quantity: 3, darkness: 20 });
-  assert.ok(zpl.startsWith('~SD20
-^XA'));
+  assert.ok(zpl.startsWith('~SD20\n^XA'));
   assert.ok(zpl.includes('^PW576'));
   assert.ok(zpl.includes('^LL406'));
   assert.ok(zpl.includes('^FO0,0^GFA,4,4,2,FF000FF0^FS'));
