@@ -181,7 +181,7 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
 #preview-wrap canvas#preview { display: block; width: 100%; height: auto; border-radius: 2px; }
 #guides { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 
-.el-box { position: absolute; border: 1px dashed rgba(25, 26, 28, 0.3); }
+.el-box { position: absolute; border: 1px dashed rgba(25, 26, 28, 0.3); touch-action: none; }
 .el-box .tag {
   position: absolute; top: -1px; left: -1px;
   font-family: var(--mono); font-size: 9px; font-weight: 600;
@@ -190,7 +190,9 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
   padding: 1px 4px; border-radius: 0 0 3px 0;
   pointer-events: none;
 }
-.el-box.selected { border: 2px solid var(--accent); }
+.el-box.selected { border: 2px solid var(--accent); z-index: 5; }
+/* A generous invisible grab margin so a resize attempt never lands on a neighbour. */
+.el-box.selected::before { content: ''; position: absolute; inset: -14px; }
 .el-box.selected .tag { background: var(--accent); }
 .el-box .handle {
   position: absolute; right: -13px; bottom: -13px;
@@ -198,22 +200,27 @@ label.field input[type="checkbox"] { width: auto; accent-color: var(--ink); }
   background: var(--accent); border: 2px solid #fff; border-radius: 50%;
   display: none;
 }
+.el-box .handle::before { content: ''; position: absolute; inset: -9px; } /* 44px touch target */
 .el-box.selected .handle { display: block; }
 
 .box-toolbar {
   position: absolute;
-  display: flex; gap: 2px;
+  display: flex; flex-direction: column; gap: 2px;
   background: var(--deck);
   border-radius: 8px;
   padding: 3px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-  z-index: 3;
+  z-index: 6;
 }
+.tb-row { display: flex; gap: 2px; align-items: center; }
 .box-toolbar button {
   width: 34px; height: 34px; padding: 0;
   background: transparent; border: 0; color: #fff; border-radius: 6px;
 }
 .box-toolbar button:active { background: rgba(255, 255, 255, 0.15); }
+.box-toolbar button.tb-text { width: auto; padding: 0 8px; font-size: 12px; font-weight: 600; }
+.box-toolbar button.on { background: var(--accent); }
+.tb-pt { color: #fff; font-family: var(--mono); font-size: 11px; min-width: 44px; text-align: center; }
 
 /* ---------- extras list ---------- */
 .extra-row { display: flex; gap: 8px; margin: 8px 0; align-items: center; }
