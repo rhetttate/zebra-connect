@@ -4,7 +4,8 @@ import { icon } from './icons.js';
 import { SIZES } from '/shared/sizes.js';
 import { createPreview, ensureFonts } from './preview.js';
 import { attachOverlay } from './overlay.js';
-import { renderToolbar } from './toolbar.js';
+import { renderToolbar, sizeTarget } from './toolbar.js';
+import { alignBox, frameFor } from '/shared/snap.js';
 
 const ROLE_TAGS = {
   lot: 'LOT', best_by: 'BEST BY', packed_on: 'PACKED', allergens: 'ALLERGENS',
@@ -91,14 +92,38 @@ export function renderEditor(container, labelOrDraft) {
   });
 
   function toolbarActions(item) {
+    const target = () => sizeTarget(item, draft);
     const rerender = () => { overlay.refresh(); commit(); };
+    const current = () => target()?.textSize ?? preview.sizes[item.key] ?? 30;
+    const setSize = (value) => {
+      const t = target();
+      if (!t) return;
+      if (value === null) delete t.textSize;
+      else t.textSize = Math.min(400, Math.max(8, Math.round(value)));
+      rerender();
+    };
     return {
+      sizeTarget: target,
+      currentSize: current,
       rotate() {
-        const target = item.extra ?? item.box;
-        target.rotation = ((target.rotation ?? 0) + 90) % 360;
+        const t = item.extra ?? item.box;
+        t.rotation = ((t.rotation ?? 0) + 90) % 360;
+        rerender();
+      },
+      align(how) {
+        Object.assign(item.box, alignBox(item.box, how, frameFor(draft.size)));
         rerender();
       },
       remove() { overlay.deselect(); removeExtra(item.extra); },
+      auto() { setSize(null); },
+      smaller() { setSize(current() - 4); },
+      bigger() { setSize(current() + 4); },
+      all() {
+        const value = target()?.textSize ?? current();
+        for (const extra of draft.extras) if (extra.kind !== 'image') extra.textSize = value;
+        if (target()) target().textSize = value;
+        rerender();
+      },
     };
   }
 
