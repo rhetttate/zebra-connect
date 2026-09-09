@@ -464,3 +464,12 @@ test('labels keep a textSize on the name and description boxes', async () => {
   assert.equal('textSize' in created.layout.barcode, false);
   close();
 });
+
+test('the shared drawing modules are served to the phone', async () => {
+  const { base, close } = await startApp();
+  const res = await fetch(`${base}/shared/render-core.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /javascript/);
+  assert.match(await res.text(), /export async function drawLabel/);
+  close();
+});

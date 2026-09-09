@@ -18,7 +18,6 @@ export const api = {
   updateLabel: async (id, draft) => (await call(`/api/labels/${id}`, json('PUT', draft))).json(),
   deleteLabel: async (id) => (await call(`/api/labels/${id}`, { method: 'DELETE' })).json(),
   newBarcode: async () => (await call('/api/barcode/new')).json(),
-  previewBlob: async (draft) => (await call('/api/preview', json('POST', draft))).blob(),
   printLabel: async (label, quantity) => (await call('/api/print', json('POST', { label, quantity }))).json(),
   printRaw: async (file) => (await call('/api/print-raw', {
     method: 'POST', headers: { 'content-type': 'application/octet-stream' }, body: file,

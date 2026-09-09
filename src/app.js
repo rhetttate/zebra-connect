@@ -42,6 +42,8 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
   const jsonBody = express.json({ limit: '1mb' });
   app.use((req, res, next) => (req.path === AI_LABEL_PATH ? next() : jsonBody(req, res, next)));
   app.use(express.static(path.join(here, '..', 'public')));
+  // The phone draws its preview with the same modules the print path uses.
+  app.use('/shared', express.static(path.join(here, '..', 'shared')));
 
   const ROTATIONS = [0, 90, 180, 270];
   const EXTRA_ROLES = ['lot', 'best_by', 'packed_on', 'allergens', 'net', 'note', 'ingredients'];
