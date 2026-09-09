@@ -295,3 +295,7 @@ header nav #station-chip.bad { color: #d9534f; border-color: #d9534f; }
 .maker-photo:not([hidden]) { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
 .maker-photo img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 1px solid var(--line, #ddd); }
 .maker-photo .remove { padding: 6px 10px; }
+.deck-actions { display: flex; gap: 4px; }
+.deck-btn { width: 30px; height: 26px; padding: 0; background: transparent; border: 0; color: #c9cbd3; border-radius: 6px; }
+.deck-btn:disabled { opacity: 0.35; }
+.deck-btn:active:not(:disabled) { background: rgba(255, 255, 255, 0.12); }

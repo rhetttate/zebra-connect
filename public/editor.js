@@ -6,6 +6,7 @@ import { createPreview, ensureFonts } from './preview.js';
 import { attachOverlay } from './overlay.js';
 import { renderToolbar, sizeTarget } from './toolbar.js';
 import { alignBox, frameFor } from '/shared/snap.js';
+import { createHistory } from './history.js';
 
 const ROLE_TAGS = {
   lot: 'LOT', best_by: 'BEST BY', packed_on: 'PACKED', allergens: 'ALLERGENS',
@@ -30,7 +31,10 @@ export function renderEditor(container, labelOrDraft) {
     <div class="deck">
       <div class="deck-bar">
         <span>${SIZE_LABELS[draft.size] ?? draft.size} in · 203 dpi</span>
-        <span class="deck-actions">tap a field to move it</span>
+        <span class="deck-actions">
+          <button id="undo" class="deck-btn" title="Undo" disabled>${icon('undo')}</button>
+          <button id="redo" class="deck-btn" title="Redo" disabled>${icon('redo')}</button>
+        </span>
       </div>
       <div id="preview-wrap"><canvas id="preview"></canvas></div>
     </div>
@@ -75,9 +79,25 @@ export function renderEditor(container, labelOrDraft) {
   const preview = createPreview(els.canvas);
   function refreshPreview() { preview.schedule(() => draft); }
 
-  // A completed change. Undo history hooks in here (Task 10); for now it draws.
-  function commit() { refreshPreview(); }
   let textTimer;
+  const undoable = () => structuredClone({ fields: draft.fields, options: draft.options, layout: draft.layout, extras: draft.extras });
+  const history = createHistory(undoable, (state) => {
+    Object.assign(draft, state);
+    syncInputs();
+    syncExtrasList();
+    overlay.refresh();
+    refreshPreview();
+  }, { onChange: updateHistoryButtons });
+  function updateHistoryButtons() {
+    container.querySelector('#undo').disabled = !history.canUndo;
+    container.querySelector('#redo').disabled = !history.canRedo;
+  }
+  // A completed change: one undo step, then a redraw.
+  function commit() {
+    clearTimeout(textTimer);
+    history.commit();
+    refreshPreview();
+  }
   function textCommit() {
     clearTimeout(textTimer);
     textTimer = setTimeout(commit, 600);
@@ -174,7 +194,7 @@ export function renderEditor(container, labelOrDraft) {
       const normalized = draft.id ? draft : await api.createLabel(draft);
       if (!draft.id) {
         draft.id = normalized.id;
-        history.replaceState(null, '', `#/edit/${draft.id}`);
+        window.history.replaceState(null, '', `#/edit/${draft.id}`);
       }
       draft.fields = normalized.fields;
       draft.options = normalized.options;
@@ -190,8 +210,11 @@ export function renderEditor(container, labelOrDraft) {
     }
     syncExtrasList();
     overlay.refresh();
+    history.reset();
   }
 
+  container.querySelector('#undo').onclick = () => history.undo();
+  container.querySelector('#redo').onclick = () => history.redo();
   els.name.oninput = () => { draft.fields.name = els.name.value; refreshPreview(); textCommit(); };
   els.desc.oninput = () => { draft.fields.description = els.desc.value; refreshPreview(); textCommit(); };
   els.barcode.oninput = () => { draft.fields.barcode = els.barcode.value; refreshPreview(); textCommit(); };
