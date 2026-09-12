@@ -12,6 +12,7 @@ import { makeLabelContent, makeClient, houseExamples } from './ai-label.js';
 import { layoutDraft } from './ai-layout.js';
 import { createQueue } from './queue.js';
 import { normalizeDraft, clampQuantity } from '../public/shared/draft.js';
+import { validateImport } from '../public/shared/import.js';
 import { parsePrn, withQuantity } from './printer-file.js';
 import { parseFields, applyFields, labelInches } from './zpl-fields.js';
 import { convertFileLabel } from './convert-file.js';
@@ -37,10 +38,12 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
   app.locals.store = store;
   app.locals.config = config;
 
-  // The AI label maker posts a base64 photo, far over 1 MB; it parses its own body.
+  // The AI label maker posts a base64 photo and a backup import posts the
+  // whole library — far over 1 MB; those routes parse their own bodies.
   const AI_LABEL_PATH = '/api/ai-label';
+  const IMPORT_PATH = '/api/labels/import';
   const jsonBody = express.json({ limit: '1mb' });
-  app.use((req, res, next) => (req.path === AI_LABEL_PATH ? next() : jsonBody(req, res, next)));
+  app.use((req, res, next) => ([AI_LABEL_PATH, IMPORT_PATH].includes(req.path) ? next() : jsonBody(req, res, next)));
   app.use(express.static(path.join(here, '..', 'public')));
 
   function requirePrinterIp() {
@@ -171,6 +174,18 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
     } catch (err) {
       throw Object.assign(new Error(`preview unavailable: ${err.message}`), { status: 502 });
     }
+  }));
+
+  app.get('/api/labels/export', wrap((req, res) => res.json(store.list())));
+
+  app.post(IMPORT_PATH, express.json({ limit: '30mb' }), wrap((req, res) => {
+    let labels;
+    try {
+      labels = validateImport(req.body);
+    } catch (err) {
+      throw Object.assign(err, { status: 400 });
+    }
+    res.json(store.importLabels(labels));
   }));
 
   app.get('/api/labels/:id', wrap((req, res) => {

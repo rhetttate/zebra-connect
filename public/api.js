@@ -39,4 +39,6 @@ export const api = {
   testPrint: async () => (await call('/api/settings/test-print', { method: 'POST' })).json(),
   zplMode: async () => (await call('/api/settings/zpl-mode', { method: 'POST' })).json(),
   calibrate: async (mediaType) => (await call('/api/settings/calibrate', json('POST', { mediaType }))).json(),
+  exportLabels: async () => (await call('/api/labels/export')).json(),
+  importLabels: async (labels) => (await call('/api/labels/import', json('POST', labels))).json(),
 };

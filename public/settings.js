@@ -41,7 +41,14 @@ export async function renderSettings(container) {
       If the test print comes out blank or as gibberish text, tap
       "Fix printer language" and try again — it switches the printer to
       ZPL-compatible mode. Power-cycle the printer after switching.
-    </p>`;
+    </p>
+    <label class="field">Backup</label>
+    <div class="row">
+      <button id="s-export" class="quiet">${icon('file')} Export labels</button>
+      <button id="s-import" class="quiet">${icon('file')} Import labels</button>
+    </div>
+    <p class="hint">Export downloads every label as one file. Import adds the labels from such a file that are not already here.</p>
+    <input id="s-import-input" type="file" accept=".json,application/json" hidden>`;
 
   const ip = container.querySelector('#s-ip');
   const darkness = container.querySelector('#s-darkness');
@@ -97,5 +104,33 @@ export async function renderSettings(container) {
   container.querySelector('#s-zpl').onclick = async () => {
     try { await api.zplMode(); showToast('Printer set to ZPL mode — power-cycle it, then test print'); }
     catch (err) { showToast(err.message, true); }
+  };
+
+  container.querySelector('#s-export').onclick = async () => {
+    try {
+      const labels = await api.exportLabels();
+      const blob = new Blob([JSON.stringify(labels, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `labels-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      showToast(`Exported ${labels.length} labels`);
+    } catch (err) { showToast(err.message, true); }
+  };
+  const importInput = container.querySelector('#s-import-input');
+  container.querySelector('#s-import').onclick = () => { importInput.value = ''; importInput.click(); };
+  importInput.onchange = async () => {
+    const file = importInput.files[0];
+    if (!file) return;
+    try {
+      const json = JSON.parse(await file.text());
+      const result = await api.importLabels(json);
+      let msg = `Imported ${result.added} labels (${result.skipped} already here)`;
+      if (result.skippedFiles) msg += ` · ${result.skippedFiles} printer files can't be used on this device`;
+      showToast(msg);
+    } catch (err) { showToast(`Import failed: ${err.message}`, true); }
   };
 }
