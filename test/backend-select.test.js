@@ -21,3 +21,9 @@ test('api is the local backend when the page declares local', async () => {
   assert.equal(local.mode, 'local');
   assert.equal(typeof local.listLabels, 'function');
 });
+
+test('station.js can be imported without a DOM and refuses to send when not connected', async () => {
+  const station = await import('../public/station.js');
+  assert.equal(typeof station.sendToPrinter, 'function');
+  await assert.rejects(station.sendToPrinter(new Uint8Array([1])), /printer not connected/);
+});

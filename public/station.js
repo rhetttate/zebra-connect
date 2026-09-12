@@ -13,6 +13,9 @@ const CHUNK = 240;
 // Set once this device has picked the printer, so later loads reconnect
 // silently and show the header chip.
 const REMEMBER_KEY = 'zc-station-device';
+// On the static site the tablet *is* the backend: it never polls a server
+// queue, and the header chip is always shown so Connect is one tap away.
+export const isLocal = globalThis.ZC_BACKEND === 'local';
 
 let device = null;
 let writeChar = null;
@@ -55,9 +58,11 @@ async function keepAwake() {
   if (status !== 'connected') return;
   try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* not fatal */ }
 }
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') keepAwake();
-});
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') keepAwake();
+  });
+}
 
 async function connectGatt() {
   const server = await device.gatt.connect();
@@ -66,7 +71,7 @@ async function connectGatt() {
   setStatus('connected');
   log(`Connected to ${device.name || 'printer'}`);
   keepAwake();
-  pump();
+  if (!isLocal) pump();
 }
 
 function attach(dev) {
@@ -130,6 +135,12 @@ async function sendBytes(bytes) {
   }
 }
 
+// Used by the local backend: one job, straight down the link.
+export async function sendToPrinter(bytes) {
+  if (!writeChar) throw new Error('printer not connected — tap the printer chip');
+  await sendBytes(bytes);
+}
+
 async function pump() {
   if (running) return;
   running = true;
@@ -170,6 +181,10 @@ const STATUS_TEXT = {
 export function renderStation(container) {
   container._stationUnsub?.();
   if (!('bluetooth' in navigator)) {
+    if (location.protocol === 'https:') {
+      container.innerHTML = `<div class="deck" style="padding:16px"><p style="color:#e8e6df">This browser has no Web Bluetooth. Use Chrome on Android.</p></div>`;
+      return;
+    }
     container.innerHTML = `
       <div class="deck" style="padding:16px">
         <p class="deck-bar" style="padding:0 0 8px">Print station · one-time setup</p>
@@ -186,16 +201,16 @@ export function renderStation(container) {
 
   container.innerHTML = `
     <div class="deck" style="padding:16px">
-      <p class="deck-bar" style="padding:0 0 10px">Print station</p>
+      <p class="deck-bar" style="padding:0 0 10px">${isLocal ? 'Printer' : 'Print station'}</p>
       <div class="row" style="margin:0 0 10px">
         <button id="st-connect" class="accent">Connect printer</button>
       </div>
       <div id="st-state" style="font-family:var(--mono);font-size:13px;color:#e8e6df;margin-bottom:8px"></div>
       <div id="st-log" style="font-family:var(--mono);font-size:12px;line-height:1.8;color:#9a9ca6;min-height:180px"></div>
     </div>
-    <p class="hint">This tablet keeps the printer link while you use the rest of the app —
-    the chip in the header shows it. Labels printed from any phone, or from here,
-    print automatically.</p>`;
+    <p class="hint">${isLocal
+      ? 'This tablet prints straight to the printer over Bluetooth. The chip in the header shows the link; tap it any time to come back here.'
+      : 'This tablet keeps the printer link while you use the rest of the app — the chip in the header shows it. Labels printed from any phone, or from here, print automatically.'}</p>`;
 
   const stateEl = container.querySelector('#st-state');
   const logEl = container.querySelector('#st-log');
