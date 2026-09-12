@@ -1,4 +1,4 @@
-import { SIZES } from '/shared/sizes.js';
+import { SIZES } from './shared/sizes.js';
 
 const EDGE = 16;      // breathing room around the label
 const TOP_BAR = 56;   // the Done / Undo / Redo bar

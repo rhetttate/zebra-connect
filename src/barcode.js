@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
-import { upcCheckDigit } from '../shared/barcode.js';
+import { upcCheckDigit } from '../public/shared/barcode.js';
 
-export { upcCheckDigit, validateUpcA, encodeUpcAModules, barcodeGeometry } from '../shared/barcode.js';
+export { upcCheckDigit, validateUpcA, encodeUpcAModules, barcodeGeometry } from '../public/shared/barcode.js';
 
 export function generateUpcA(isTaken) {
   for (let attempt = 0; attempt < 1000; attempt++) {

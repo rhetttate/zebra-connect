@@ -1,6 +1,6 @@
-import { SIZES } from '../shared/sizes.js';
+import { SIZES } from '../public/shared/sizes.js';
 export { SIZES };
-export { barcodeGeometry } from '../shared/barcode.js';
+export { barcodeGeometry } from '../public/shared/barcode.js';
 
 // The ZQ620's print head is 576 dots wide, so the landscape 5x3 designer
 // canvas is rotated 90° clockwise at print time.

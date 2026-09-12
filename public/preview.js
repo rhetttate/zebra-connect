@@ -1,5 +1,5 @@
-import { drawLabel, setFont } from '/shared/render-core.js';
-import { SIZES } from '/shared/sizes.js';
+import { drawLabel, setFont } from './shared/render-core.js';
+import { SIZES } from './shared/sizes.js';
 
 // Waits for the Arimo web fonts so the first draw already uses them; on a
 // browser without the Font Loading API it just proceeds.

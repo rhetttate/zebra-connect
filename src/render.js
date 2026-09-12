@@ -2,8 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCanvas, loadImage, GlobalFonts } from '@napi-rs/canvas';
-import { SIZES } from '../shared/sizes.js';
-import { drawLabel, setFont, fontFamily } from '../shared/render-core.js';
+import { SIZES } from '../public/shared/sizes.js';
+import { drawLabel, setFont, fontFamily } from '../public/shared/render-core.js';
 
 // The phone previews in the same Arimo files (served from public/fonts), so
 // preview and print agree. Missing files fall back to Arial with a warning.

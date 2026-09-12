@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIZES, MARGIN } from '../shared/sizes.js';
-import { barcodeGeometry, encodeUpcAModules, validateUpcA } from '../shared/barcode.js';
+import { SIZES, MARGIN } from '../public/shared/sizes.js';
+import { barcodeGeometry, encodeUpcAModules, validateUpcA } from '../public/shared/barcode.js';
 import * as srcBarcode from '../src/barcode.js';
 import * as srcLayout from '../src/layout.js';
 

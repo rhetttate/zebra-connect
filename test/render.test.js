@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { renderPreview, renderPrintBitmap, rotateBitmap90CW, fontFamily } from '../src/render.js';
 import { defaultLayout } from '../src/layout.js';
 import { createCanvas } from '@napi-rs/canvas';
-import { drawLabel } from '../shared/render-core.js';
+import { drawLabel } from '../public/shared/render-core.js';
 
 const label = {
   size: '3x2',
