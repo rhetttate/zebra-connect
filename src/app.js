@@ -3,7 +3,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createStore } from './store.js';
 import { createConfig } from './config.js';
-import crypto from 'node:crypto';
 import { SIZES, defaultLayout, defaultShowDescription, printRotation } from './layout.js';
 import { generateUpcA, validateUpcA } from './barcode.js';
 import { renderPreview, renderPrintBitmap, rotateBitmap90CW } from './render.js';
@@ -12,6 +11,7 @@ import * as printerLib from './printer.js';
 import { makeLabelContent, makeClient, houseExamples } from './ai-label.js';
 import { layoutDraft } from './ai-layout.js';
 import { createQueue } from './queue.js';
+import { normalizeDraft, clampQuantity } from '../public/shared/draft.js';
 import { parsePrn, withQuantity } from './printer-file.js';
 import { parseFields, applyFields, labelInches } from './zpl-fields.js';
 import { convertFileLabel } from './convert-file.js';
@@ -42,81 +42,6 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
   const jsonBody = express.json({ limit: '1mb' });
   app.use((req, res, next) => (req.path === AI_LABEL_PATH ? next() : jsonBody(req, res, next)));
   app.use(express.static(path.join(here, '..', 'public')));
-
-  const ROTATIONS = [0, 90, 180, 270];
-  const EXTRA_ROLES = ['lot', 'best_by', 'packed_on', 'allergens', 'net', 'note', 'ingredients'];
-
-  function validateBox(box, what) {
-    if (!box || ![box.x, box.y, box.w, box.h].every(Number.isFinite)) {
-      throw Object.assign(new Error(`invalid layout box for ${what}`), { status: 400 });
-    }
-  }
-
-  function validateRotation(rotation, what) {
-    if (!ROTATIONS.includes(rotation)) {
-      throw Object.assign(new Error(`invalid rotation for ${what} — use 0, 90, 180, or 270`), { status: 400 });
-    }
-  }
-
-  function normalizeDraft(draft) {
-    if (!SIZES[draft.size]) throw Object.assign(new Error('unknown size'), { status: 400 });
-    const label = {
-      size: draft.size,
-      fields: {
-        name: draft.fields?.name ?? '',
-        description: draft.fields?.description ?? '',
-        barcode: draft.fields?.barcode ?? '',
-      },
-      options: {
-        showDescription: draft.options?.showDescription ?? defaultShowDescription(draft.size),
-      },
-      layout: draft.layout ?? defaultLayout(draft.size),
-      extras: (Array.isArray(draft.extras) ? draft.extras : []).slice(0, 20).map((extra) => {
-        const isImage = extra.kind === 'image';
-        const out = {
-          id: typeof extra.id === 'string' && extra.id ? extra.id : crypto.randomUUID(),
-          text: isImage ? '' : String(extra.text ?? ''),
-          box: extra.box,
-          rotation: extra.rotation ?? 0,
-        };
-        if (isImage) {
-          // Only a PNG data URL of sane size may be stored; nothing else is drawn.
-          if (typeof extra.image !== 'string' || extra.image.length > 400_000
-            || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(extra.image)) {
-            throw Object.assign(new Error('invalid image field'), { status: 400 });
-          }
-          out.kind = 'image';
-          out.image = extra.image;
-        }
-        if (extra.fit) out.fit = true;
-        if (EXTRA_ROLES.includes(extra.role)) out.role = extra.role;
-        if (extra.bold) out.bold = true;
-        if (['L', 'C', 'R'].includes(extra.align)) out.align = extra.align;
-        const stretch = Number(extra.stretch);
-        if (Number.isFinite(stretch) && stretch >= 0.2 && stretch <= 3) out.stretch = stretch;
-        const textSize = Number(extra.textSize);
-        if (Number.isFinite(textSize) && textSize >= 8 && textSize <= 400) out.textSize = Math.round(textSize);
-        return out;
-      }),
-    };
-    if (label.fields.barcode && !validateUpcA(label.fields.barcode)) {
-      throw Object.assign(new Error('barcode must be a valid 12-digit UPC-A'), { status: 400 });
-    }
-    for (const key of ['name', 'description', 'barcode']) {
-      const b = label.layout?.[key];
-      validateBox(b, key);
-      b.rotation = b.rotation ?? 0;
-      validateRotation(b.rotation, key);
-      const textSize = Number(b.textSize);
-      if (key !== 'barcode' && Number.isFinite(textSize) && textSize >= 8 && textSize <= 400) b.textSize = Math.round(textSize);
-      else delete b.textSize;
-    }
-    for (const extra of label.extras) {
-      validateBox(extra.box, 'extra field');
-      validateRotation(extra.rotation, 'extra field');
-    }
-    return label;
-  }
 
   function requirePrinterIp() {
     const ip = config.get().printerIp;
@@ -282,7 +207,7 @@ export function createApp({ dataDir, printerOverrides = {}, aiLabelOverride, zpl
 
   app.post('/api/print', wrap(async (req, res) => {
     const label = normalizeDraft(req.body.label ?? {});
-    const quantity = Math.min(Math.max(parseInt(req.body.quantity, 10) || 1, 1), 100);
+    const quantity = clampQuantity(req.body.quantity);
     // Everything, barcode included, is drawn into one bitmap at dot
     // resolution, so the print is exactly what the phone previewed.
     let bitmap = await renderPrintBitmap(label, { includeBarcode: true });
