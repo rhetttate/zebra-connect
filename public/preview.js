@@ -11,7 +11,7 @@ export async function ensureFonts() {
 }
 
 const imageCache = new Map();
-function loadImage(src) {
+export function loadImage(src) {
   if (!imageCache.has(src)) {
     imageCache.set(src, new Promise((resolve, reject) => {
       const img = new Image();

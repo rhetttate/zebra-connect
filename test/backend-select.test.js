@@ -22,6 +22,15 @@ test('api is the local backend when the page declares local', async () => {
   assert.equal(typeof local.listLabels, 'function');
 });
 
+test('local backend has every method the remote backend has', async () => {
+  const { remote } = await import('../public/backend-remote.js');
+  const { local } = await import('../public/backend-local.js');
+  for (const name of Object.keys(remote)) {
+    assert.equal(typeof local[name], typeof remote[name], `local.${name}`);
+  }
+  await assert.rejects(local.discover(), /not available on this device/);
+});
+
 test('station.js can be imported without a DOM and refuses to send when not connected', async () => {
   const station = await import('../public/station.js');
   assert.equal(typeof station.sendToPrinter, 'function');
