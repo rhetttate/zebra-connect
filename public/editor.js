@@ -304,7 +304,9 @@ export function renderEditor(container, labelOrDraft) {
       await api.updateLabel(draft.id, draft);
       const result = await api.printLabel(draft, parseInt(els.qty.value, 10) || 1);
       showToast(result.queued ? 'Queued — printing at the station' : 'Sent to printer');
-    } catch (err) { showToast(err.message, true); }
+    } catch (err) {
+      showToast(err.message, true, { actionLabel: 'Retry', onAction: () => btn.click() });
+    }
     btn.disabled = false;
   };
   const deleteBtn = container.querySelector('#delete');

@@ -7,6 +7,10 @@ import { showToast, navigate, openFilePrint, SIZE_LABELS } from './app.js';
 import { parseFields, applyFields } from './zpl-fields.js';
 
 export async function renderFileEditor(container, label) {
+  if (api.mode === 'local') {
+    container.innerHTML = '<p class="hint">Printer files are edited on the laptop, not on this tablet.</p>';
+    return;
+  }
   let base = label.zpl;            // the ZPL all field edits are applied to
   let fields = parseFields(base);
   let zpl = base;                  // working copy = base + current fields

@@ -1,10 +1,18 @@
 import { api } from './api.js';
 import { showToast } from './app.js';
 import { icon } from './icons.js';
+import { connectStation } from './station.js';
 
 export async function renderSettings(container) {
   const settings = await api.getSettings();
+  const local = api.mode === 'local';
   container.innerHTML = `
+    ${local ? `
+    <label class="field">Printer</label>
+    <p class="hint" style="margin-top:0">Prints go over Bluetooth to the connected printer.</p>
+    <div class="row" style="margin-bottom:12px">
+      <button id="s-connect" class="quiet">Connect printer</button>
+    </div>` : `
     <label class="field">How prints reach the printer</label>
     <div class="choice" data-conn="network">
       <strong>WiFi network</strong>
@@ -23,7 +31,7 @@ export async function renderSettings(container) {
       <input id="s-ip" placeholder="e.g. 192.168.1.50" autocomplete="off">
       <button id="s-discover" class="quiet tight">${icon('search')} Find</button>
     </div>
-    <div id="s-found" class="hint"></div>
+    <div id="s-found" class="hint"></div>`}
     <label class="field">Darkness · 0–30</label>
     <input id="s-darkness" type="number" min="0" max="30">
     <label class="field">Anthropic API key
@@ -50,29 +58,37 @@ export async function renderSettings(container) {
     <p class="hint">Export downloads every label as one file. Import adds the labels from such a file that are not already here.</p>
     <input id="s-import-input" type="file" accept=".json,application/json" hidden>`;
 
-  const ip = container.querySelector('#s-ip');
+  const ip = container.querySelector('#s-ip'); // absent on the tablet
   const darkness = container.querySelector('#s-darkness');
   const key = container.querySelector('#s-key');
-  ip.value = settings.printerIp;
+  if (ip) ip.value = settings.printerIp;
   darkness.value = settings.darkness;
 
-  const selectConnection = (mode) => {
-    container.querySelectorAll('[data-conn]').forEach((c) =>
-      c.classList.toggle('selected', c.dataset.conn === mode));
-    container.querySelector('#station-hint').hidden = mode !== 'station';
-  };
-  selectConnection(settings.connection || 'network');
-  container.querySelectorAll('[data-conn]').forEach((c) => {
-    c.onclick = async () => {
-      selectConnection(c.dataset.conn);
-      try { await api.putSettings({ connection: c.dataset.conn }); }
+  if (local) {
+    container.querySelector('#s-connect').onclick = async () => {
+      try { await connectStation({ interactive: true }); showToast('Printer connected'); }
       catch (err) { showToast(err.message, true); }
     };
-  });
+  } else {
+    const selectConnection = (mode) => {
+      container.querySelectorAll('[data-conn]').forEach((c) =>
+        c.classList.toggle('selected', c.dataset.conn === mode));
+      container.querySelector('#station-hint').hidden = mode !== 'station';
+    };
+    selectConnection(settings.connection || 'network');
+    container.querySelectorAll('[data-conn]').forEach((c) => {
+      c.onclick = async () => {
+        selectConnection(c.dataset.conn);
+        try { await api.putSettings({ connection: c.dataset.conn }); }
+        catch (err) { showToast(err.message, true); }
+      };
+    });
+  }
 
   container.querySelector('#s-save').onclick = async () => {
     try {
-      const patch = { printerIp: ip.value.trim(), darkness: Number(darkness.value) };
+      const patch = { darkness: Number(darkness.value) };
+      if (ip) patch.printerIp = ip.value.trim();
       if (key.value.trim()) patch.apiKey = key.value.trim();
       await api.putSettings(patch);
       showToast('Settings saved');
@@ -80,7 +96,7 @@ export async function renderSettings(container) {
     } catch (err) { showToast(err.message, true); }
   };
 
-  container.querySelector('#s-discover').onclick = async () => {
+  if (!local) container.querySelector('#s-discover').onclick = async () => {
     const found = container.querySelector('#s-found');
     found.textContent = 'Scanning your network — this can take up to 30 seconds…';
     try {
