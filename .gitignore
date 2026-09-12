@@ -1,5 +1,6 @@
 node_modules/
 data/
+site/
 
 # AI label maker tuning output
 ai-label-out/
