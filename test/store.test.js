@@ -54,6 +54,19 @@ test('duplicate barcodes are rejected, except on the same label', () => {
   store.update(a.id, { options: { showDescription: false } });
 });
 
+test('importLabels adds labels whose id is new and skips the rest', () => {
+  const { store } = tmpStore();
+  const a = store.create(sample());
+  const incoming = [
+    { ...a, fields: { ...a.fields, name: 'Changed' } },
+    { id: 'imported-1', size: '3x2', fields: { name: 'B', description: '', barcode: '036000291452' }, options: {}, layout: {}, extras: [], createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' },
+  ];
+  assert.deepEqual(store.importLabels(incoming), { added: 1, skipped: 1 });
+  assert.equal(store.get(a.id).fields.name, 'Flour', 'existing label untouched');
+  assert.equal(store.get('imported-1').fields.barcode, '036000291452', 'shared barcodes allowed on import');
+  assert.equal(store.list().length, 2);
+});
+
 test('imported labels may share a real barcode, but moving to a taken one is still refused', () => {
   const { store } = tmpStore();
   const a = store.create(sample());

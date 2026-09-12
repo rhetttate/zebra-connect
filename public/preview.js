@@ -1,5 +1,5 @@
-import { drawLabel, setFont } from '/shared/render-core.js';
-import { SIZES } from '/shared/sizes.js';
+import { drawLabel, setFont } from './shared/render-core.js';
+import { SIZES } from './shared/sizes.js';
 
 // Waits for the Arimo web fonts so the first draw already uses them; on a
 // browser without the Font Loading API it just proceeds.
@@ -11,7 +11,7 @@ export async function ensureFonts() {
 }
 
 const imageCache = new Map();
-function loadImage(src) {
+export function loadImage(src) {
   if (!imageCache.has(src)) {
     imageCache.set(src, new Promise((resolve, reject) => {
       const img = new Image();

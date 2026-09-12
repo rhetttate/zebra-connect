@@ -55,5 +55,19 @@ export function createStore(filePath) {
       labels = labels.filter((l) => l.id !== id);
       save();
     },
+    // Backup restore / carrying labels to another device: labels whose id is
+    // already here are left alone (no merge), everything else is added as-is,
+    // barcodes included — a backup may legitimately share codes.
+    importLabels(incoming) {
+      let added = 0;
+      let skipped = 0;
+      for (const label of incoming) {
+        if (labels.some((l) => l.id === label.id)) { skipped++; continue; }
+        labels.push(structuredClone(label));
+        added++;
+      }
+      if (added) save();
+      return { added, skipped };
+    },
   };
 }

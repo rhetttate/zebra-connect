@@ -1,5 +1,5 @@
-import { SIZES } from '/shared/sizes.js';
-import { snapBox, snapTargets } from '/shared/snap.js';
+import { SIZES } from './shared/sizes.js';
+import { snapBox, snapTargets } from './shared/snap.js';
 
 const MIN_DOTS = 60;
 const DRAG_START_PX = 4;

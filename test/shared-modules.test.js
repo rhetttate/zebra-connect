@@ -1,9 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIZES, MARGIN } from '../shared/sizes.js';
-import { barcodeGeometry, encodeUpcAModules, validateUpcA } from '../shared/barcode.js';
+import { SIZES, MARGIN } from '../public/shared/sizes.js';
+import { barcodeGeometry, encodeUpcAModules, validateUpcA } from '../public/shared/barcode.js';
 import * as srcBarcode from '../src/barcode.js';
 import * as srcLayout from '../src/layout.js';
+import * as sharedLayout from '../public/shared/layout.js';
+import * as sharedZpl from '../public/shared/zpl.js';
+import { withQuantity } from '../public/shared/printer-file.js';
+import * as srcZpl from '../src/zpl.js';
+import * as srcPrinterFile from '../src/printer-file.js';
+
+test('src layout, zpl and printer-file re-export the shared implementations', () => {
+  assert.equal(srcLayout.printRotation, sharedLayout.printRotation);
+  assert.equal(srcLayout.defaultLayout, sharedLayout.defaultLayout);
+  assert.equal(srcZpl.buildLabelZpl, sharedZpl.buildLabelZpl);
+  assert.equal(srcZpl.buildCalibrationZpl, sharedZpl.buildCalibrationZpl);
+  assert.equal(srcPrinterFile.withQuantity, withQuantity);
+  assert.equal(withQuantity('^XA^XZ', 3), '^XA^PQ3^XZ');
+});
 
 test('shared sizes match the layout module and carry margins', () => {
   assert.deepEqual(SIZES, srcLayout.SIZES);

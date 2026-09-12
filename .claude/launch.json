@@ -2,10 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "zebra-connect",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["start"],
-      "port": 3000
+      "name": "zebra-dev",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["-e", "import('./src/app.js').then(m => m.createApp({ dataDir: 'data' }).listen(3100, '127.0.0.1', () => console.log('dev server on http://127.0.0.1:3100')))"],
+      "port": 3100
+    },
+    {
+      "name": "site-static",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["--yes", "serve", "-l", "8080", "site"],
+      "port": 8080
     }
   ]
 }

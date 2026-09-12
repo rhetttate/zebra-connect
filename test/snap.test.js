@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { frameFor, snapTargets, snapBox, alignBox, SNAP_THRESHOLD } from '../shared/snap.js';
+import { frameFor, snapTargets, snapBox, alignBox, SNAP_THRESHOLD } from '../public/shared/snap.js';
 
 test('frameFor is the label inset by its margin', () => {
   assert.deepEqual(frameFor('3x5'), { x: 20, y: 20, w: 975, h: 536 });

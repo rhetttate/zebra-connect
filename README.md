@@ -83,25 +83,46 @@ Firewall → "Allow an app" → Node.js is allowed on Private networks.
   **Print a .prn once** sends a file byte-for-byte without keeping it. To
   load a whole folder at once: `node tools/import-prn.mjs <folder> [server-url]`.
 
-## Bluetooth print station (printer not on WiFi)
+## Standalone tablet (printer not on WiFi)
 
-When the printer can't join the network (e.g. WPA3-only WiFi), use a
-tablet docked next to it as the relay:
+When the printer can't join the network (e.g. WPA3-only WiFi), the tablet
+docked next to it runs the whole app by itself: labels are kept on the
+tablet, drawn there, and sent over Bluetooth. No PC is needed at the store.
 
-1. In **Settings**, set "How prints reach the printer" to **Bluetooth
-   print station**.
-2. On the tablet (Android, Chrome), open `http://<server-ip>:3000/#/station`.
-   The first visit shows a one-time Chrome flag to enable Bluetooth for
-   this site — follow the on-screen steps, relaunch Chrome, return.
-3. Tap **Connect printer** and pick the Zebra from the list.
-4. Leave the page open (it keeps the screen awake). Prints from any
-   phone queue up and print automatically; the page shows a live log.
+The tablet app is the same code published as a static site by GitHub
+Pages (`.github/workflows/pages.yml` runs `node tools/build-site.mjs` on
+every push to `master`).
+
+1. On the laptop app: **Settings → Export labels** and get the file onto
+   the tablet (Drive, email, USB).
+2. On the tablet (Android, Chrome): open the site address, menu (⋮) →
+   **Add to Home screen**. It works offline from then on.
+3. **Settings → Import labels**, then set darkness, the loaded size and
+   media type (tap the size chip), and the Anthropic API key if you use
+   **Make it for me**.
+4. Tap the **PRINTER** chip → **Connect printer** → pick the Zebra. Test
+   print, then Calibrate.
+
+Printer files (`.prn` entries) are a laptop feature; the tablet only
+prints regular labels and "Print a .prn once". When a new version is
+published, the tablet shows **Update ready — Reload** the next time it
+is online.
 
 The printer needs Bluetooth LE enabled
 (`! U1 setvar "bluetooth.le.controller_mode" "both"` — already done for
 this printer). Big 5×3 labels take a few extra seconds over Bluetooth.
 
+To keep using a PC as the server with the tablet as a relay instead, set
+"How prints reach the printer" to **Bluetooth print station** in Settings
+and open `http://<server-ip>:3000/#/station` on the tablet (the first
+visit shows a one-time Chrome flag to enable Bluetooth for that address).
+
 ## Where data lives
 
 `data/labels.json` (your labels) and `data/config.json` (settings,
 including the API key) — back up the `data/` folder to keep everything.
+
+**Settings → Export labels** downloads the whole library as one JSON file;
+**Import labels** adds the labels from such a file that are not already
+present. On the tablet, labels live in the browser's IndexedDB and settings
+(including the API key) in localStorage — export before clearing site data.

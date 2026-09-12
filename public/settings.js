@@ -1,10 +1,18 @@
 import { api } from './api.js';
 import { showToast } from './app.js';
 import { icon } from './icons.js';
+import { connectStation } from './station.js';
 
 export async function renderSettings(container) {
   const settings = await api.getSettings();
+  const local = api.mode === 'local';
   container.innerHTML = `
+    ${local ? `
+    <label class="field">Printer</label>
+    <p class="hint" style="margin-top:0">Prints go over Bluetooth to the connected printer.</p>
+    <div class="row" style="margin-bottom:12px">
+      <button id="s-connect" class="quiet">Connect printer</button>
+    </div>` : `
     <label class="field">How prints reach the printer</label>
     <div class="choice" data-conn="network">
       <strong>WiFi network</strong>
@@ -23,7 +31,7 @@ export async function renderSettings(container) {
       <input id="s-ip" placeholder="e.g. 192.168.1.50" autocomplete="off">
       <button id="s-discover" class="quiet tight">${icon('search')} Find</button>
     </div>
-    <div id="s-found" class="hint"></div>
+    <div id="s-found" class="hint"></div>`}
     <label class="field">Darkness · 0–30</label>
     <input id="s-darkness" type="number" min="0" max="30">
     <label class="field">Anthropic API key
@@ -41,31 +49,46 @@ export async function renderSettings(container) {
       If the test print comes out blank or as gibberish text, tap
       "Fix printer language" and try again — it switches the printer to
       ZPL-compatible mode. Power-cycle the printer after switching.
-    </p>`;
+    </p>
+    <label class="field">Backup</label>
+    <div class="row">
+      <button id="s-export" class="quiet">${icon('file')} Export labels</button>
+      <button id="s-import" class="quiet">${icon('file')} Import labels</button>
+    </div>
+    <p class="hint">Export downloads every label as one file. Import adds the labels from such a file that are not already here.</p>
+    <input id="s-import-input" type="file" accept=".json,application/json" hidden>`;
 
-  const ip = container.querySelector('#s-ip');
+  const ip = container.querySelector('#s-ip'); // absent on the tablet
   const darkness = container.querySelector('#s-darkness');
   const key = container.querySelector('#s-key');
-  ip.value = settings.printerIp;
+  if (ip) ip.value = settings.printerIp;
   darkness.value = settings.darkness;
 
-  const selectConnection = (mode) => {
-    container.querySelectorAll('[data-conn]').forEach((c) =>
-      c.classList.toggle('selected', c.dataset.conn === mode));
-    container.querySelector('#station-hint').hidden = mode !== 'station';
-  };
-  selectConnection(settings.connection || 'network');
-  container.querySelectorAll('[data-conn]').forEach((c) => {
-    c.onclick = async () => {
-      selectConnection(c.dataset.conn);
-      try { await api.putSettings({ connection: c.dataset.conn }); }
+  if (local) {
+    container.querySelector('#s-connect').onclick = async () => {
+      try { await connectStation({ interactive: true }); showToast('Printer connected'); }
       catch (err) { showToast(err.message, true); }
     };
-  });
+  } else {
+    const selectConnection = (mode) => {
+      container.querySelectorAll('[data-conn]').forEach((c) =>
+        c.classList.toggle('selected', c.dataset.conn === mode));
+      container.querySelector('#station-hint').hidden = mode !== 'station';
+    };
+    selectConnection(settings.connection || 'network');
+    container.querySelectorAll('[data-conn]').forEach((c) => {
+      c.onclick = async () => {
+        selectConnection(c.dataset.conn);
+        try { await api.putSettings({ connection: c.dataset.conn }); }
+        catch (err) { showToast(err.message, true); }
+      };
+    });
+  }
 
   container.querySelector('#s-save').onclick = async () => {
     try {
-      const patch = { printerIp: ip.value.trim(), darkness: Number(darkness.value) };
+      const patch = { darkness: Number(darkness.value) };
+      if (ip) patch.printerIp = ip.value.trim();
       if (key.value.trim()) patch.apiKey = key.value.trim();
       await api.putSettings(patch);
       showToast('Settings saved');
@@ -73,7 +96,7 @@ export async function renderSettings(container) {
     } catch (err) { showToast(err.message, true); }
   };
 
-  container.querySelector('#s-discover').onclick = async () => {
+  if (!local) container.querySelector('#s-discover').onclick = async () => {
     const found = container.querySelector('#s-found');
     found.textContent = 'Scanning your network — this can take up to 30 seconds…';
     try {
@@ -97,5 +120,33 @@ export async function renderSettings(container) {
   container.querySelector('#s-zpl').onclick = async () => {
     try { await api.zplMode(); showToast('Printer set to ZPL mode — power-cycle it, then test print'); }
     catch (err) { showToast(err.message, true); }
+  };
+
+  container.querySelector('#s-export').onclick = async () => {
+    try {
+      const labels = await api.exportLabels();
+      const blob = new Blob([JSON.stringify(labels, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `labels-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      showToast(`Exported ${labels.length} labels`);
+    } catch (err) { showToast(err.message, true); }
+  };
+  const importInput = container.querySelector('#s-import-input');
+  container.querySelector('#s-import').onclick = () => { importInput.value = ''; importInput.click(); };
+  importInput.onchange = async () => {
+    const file = importInput.files[0];
+    if (!file) return;
+    try {
+      const json = JSON.parse(await file.text());
+      const result = await api.importLabels(json);
+      let msg = `Imported ${result.added} labels (${result.skipped} already here)`;
+      if (result.skippedFiles) msg += ` · ${result.skippedFiles} printer files can't be used on this device`;
+      showToast(msg);
+    } catch (err) { showToast(`Import failed: ${err.message}`, true); }
   };
 }

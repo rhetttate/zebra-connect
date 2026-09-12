@@ -1,11 +1,11 @@
 import { api } from './api.js';
 import { showToast, navigate, SIZE_LABELS } from './app.js';
 import { icon } from './icons.js';
-import { SIZES } from '/shared/sizes.js';
+import { SIZES } from './shared/sizes.js';
 import { createPreview, ensureFonts } from './preview.js';
 import { attachOverlay } from './overlay.js';
 import { renderToolbar, sizeTarget } from './toolbar.js';
-import { alignBox, frameFor } from '/shared/snap.js';
+import { alignBox, frameFor } from './shared/snap.js';
 import { createHistory } from './history.js';
 import { createFullscreen } from './fullscreen.js';
 
@@ -304,7 +304,9 @@ export function renderEditor(container, labelOrDraft) {
       await api.updateLabel(draft.id, draft);
       const result = await api.printLabel(draft, parseInt(els.qty.value, 10) || 1);
       showToast(result.queued ? 'Queued — printing at the station' : 'Sent to printer');
-    } catch (err) { showToast(err.message, true); }
+    } catch (err) {
+      showToast(err.message, true, { actionLabel: 'Retry', onAction: () => btn.click() });
+    }
     btn.disabled = false;
   };
   const deleteBtn = container.querySelector('#delete');

@@ -129,7 +129,9 @@ refreshLoadedChip();
 
 // The station chip only appears on a device that has connected to the
 // printer (the tablet), and follows the link wherever the user navigates.
+// On the standalone tablet it is always there: it is the way to Connect.
 const STATION_CHIP = {
+  off: ['PRINTER ✗', 'bad'],
   connected: ['PRINTER ✓', 'ok'],
   connecting: ['PRINTER …', ''],
   reconnecting: ['PRINTER …', ''],
@@ -138,7 +140,7 @@ const STATION_CHIP = {
 function refreshStationChip(state) {
   const chip = document.getElementById('station-chip');
   const entry = STATION_CHIP[state.status];
-  chip.hidden = !(entry && (state.remembered || state.status !== 'off'));
+  chip.hidden = !(entry && (api.mode === 'local' || state.remembered || state.status !== 'off'));
   if (!entry) return;
   chip.textContent = entry[0];
   chip.classList.toggle('ok', entry[1] === 'ok');
@@ -158,13 +160,20 @@ function setTitle(text) {
   }
 }
 
-export function showToast(message, isError = false) {
+export function showToast(message, isError = false, { actionLabel, onAction } = {}) {
   const toast = document.getElementById('toast');
   toast.textContent = message;
+  if (actionLabel) {
+    const btn = document.createElement('button');
+    btn.className = 'quiet tight';
+    btn.textContent = actionLabel;
+    btn.onclick = () => { toast.hidden = true; onAction?.(); };
+    toast.appendChild(btn);
+  }
   toast.className = isError ? 'error' : '';
   toast.hidden = false;
   clearTimeout(showToast.timer);
-  showToast.timer = setTimeout(() => { toast.hidden = true; }, 3500);
+  showToast.timer = setTimeout(() => { toast.hidden = true; }, actionLabel ? 8000 : 3500);
 }
 
 export function navigate(hash) { location.hash = hash; }
@@ -380,6 +389,11 @@ function renderNew() {
     <input id="prn-input" type="file" accept=".prn" hidden>
     <input id="add-prn-input" type="file" accept=".prn" multiple hidden>`;
 
+  if (api.mode === 'local') {
+    view.querySelector('#add-prn').hidden = true;
+    view.querySelector('.row:has(#add-prn) + .hint').textContent = '"Print once" sends a finished .prn file to the printer without keeping it.';
+  }
+
   const addInput = view.querySelector('#add-prn-input');
   view.querySelector('#add-prn').onclick = () => { addInput.value = ''; addInput.click(); };
   addInput.onchange = async () => {
@@ -476,6 +490,7 @@ async function route() {
   try {
     if (hash === '#/' || hash === '') await renderLibrary();
     else if (hash.startsWith('#/file/')) {
+      if (api.mode === 'local') { showToast('Printer files are edited on the laptop', true); navigate('#/'); return; }
       setTitle('Edit printer file');
       await renderFileEditor(view, await api.getLabel(hash.slice(7)));
     }
@@ -495,5 +510,21 @@ async function route() {
   }
 }
 
+function showFatal(message) {
+  document.getElementById('nav').hidden = true;
+  view.innerHTML = `<div class="deck" style="padding:16px"><p style="color:#e8e6df">${message}</p>
+    <p class="hint">Labels cannot be kept in this browser. Use Chrome on Android with site data allowed (not a private tab).</p></div>`;
+}
+
 window.addEventListener('hashchange', route);
-route();
+api.init().then(route).catch((err) => showFatal(err.message));
+
+// A new version of the site was fetched in the background (see sw-register.js).
+window.addEventListener('zc-update-ready', () => {
+  if (document.getElementById('update-bar')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-bar';
+  bar.innerHTML = '<span>Update ready</span><button class="accent tight">Reload</button>';
+  bar.querySelector('button').onclick = () => window.dispatchEvent(new CustomEvent('zc-update-apply'));
+  document.body.appendChild(bar);
+});

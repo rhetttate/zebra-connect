@@ -465,6 +465,25 @@ test('labels keep a textSize on the name and description boxes', async () => {
   close();
 });
 
+test('labels export and import round trip', async () => {
+  const { base, close } = await startApp();
+  await fetch(`${base}/api/labels`, {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ size: '3x2', fields: { name: 'Flour' } }),
+  });
+  const exported = await (await fetch(`${base}/api/labels/export`)).json();
+  assert.equal(exported.length, 1);
+  const again = await (await fetch(`${base}/api/labels/import`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(exported),
+  })).json();
+  assert.deepEqual(again, { added: 0, skipped: 1 });
+  const bad = await fetch(`${base}/api/labels/import`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ nope: true }),
+  });
+  assert.equal(bad.status, 400);
+  close();
+});
+
 test('the shared drawing modules are served to the phone', async () => {
   const { base, close } = await startApp();
   const res = await fetch(`${base}/shared/render-core.js`);
