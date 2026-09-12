@@ -4,6 +4,8 @@
 import path from 'node:path';
 import { SIZES } from './layout.js';
 
+export { withQuantity } from '../public/shared/printer-file.js';
+
 const BOM = '﻿';
 
 function textOf(input) {
@@ -37,10 +39,3 @@ export function parsePrn(input, filename) {
   return { name, size: sizeFor(zpl), zpl };
 }
 
-export function withQuantity(zpl, quantity) {
-  const qty = Math.min(Math.max(parseInt(quantity, 10) || 1, 1), 100);
-  if (qty === 1) return zpl;
-  if (/\^PQ\d+/.test(zpl)) return zpl.replace(/\^PQ\d+/, `^PQ${qty}`);
-  const end = zpl.lastIndexOf('^XZ');
-  return end === -1 ? `${zpl}^PQ${qty}` : `${zpl.slice(0, end)}^PQ${qty}${zpl.slice(end)}`;
-}
